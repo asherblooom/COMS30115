@@ -1,0 +1,24 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang++",
+      "-c",
+      "-pipe",
+      "-Wall",
+      "-std=c++11",
+      "-ggdb",
+      "-g3",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I./libs/sdw/",
+      "-I./libs/glm-0.9.7.2/",
+      "-o",
+      "build/RedNoise.o",
+      "src/RedNoise.cpp"
+    ],
+    "directory": "/home/asher/units/ComputerGraphicsOld/RedNoise",
+    "file": "/home/asher/units/ComputerGraphicsOld/RedNoise/src/RedNoise.cpp",
+    "output": "/home/asher/units/ComputerGraphicsOld/RedNoise/build/RedNoise.o"
+  }
+]
