@@ -9,6 +9,9 @@
 #define HEIGHT 240
 
 std::vector<float> interpolateSingleFloats(float from, float to, int numberOfValues) {
+	if (numberOfValues <= 1) {
+		return std::vector<float>{from};
+	}
 	float interval = (to - from) / (numberOfValues - 1);
 	std::vector<float> values;
 	// (too?) simple fix that should allow us to compare floats
@@ -20,6 +23,9 @@ std::vector<float> interpolateSingleFloats(float from, float to, int numberOfVal
 }
 
 std::vector<glm::vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 to, int numberOfValues) {
+	if (numberOfValues <= 1) {
+		return std::vector<glm::vec3>{from};
+	}
 	glm::vec3 interval = (to - from) / glm::vec3(numberOfValues - 1);
 	std::vector<glm::vec3> values;
 	glm::vec3 tolerance(0.01);
