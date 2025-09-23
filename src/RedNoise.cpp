@@ -1,7 +1,6 @@
 #include <CanvasTriangle.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
-#include <fstream>
 #include <glm/glm.hpp>
 #include <vector>
 #include "glm/detail/func_vector_relational.hpp"
@@ -12,12 +11,11 @@
 std::vector<float> interpolateSingleFloats(float from, float to, int numberOfValues) {
 	float interval = (to - from) / (numberOfValues - 1);
 	std::vector<float> values;
-	// (too?) simple fix that should allow us to include n == to in our loop
-	// but not n == to + interval (as float/double equality is dodgy)
+	// (too?) simple fix that should allow us to compare floats
 	float tolerance = 0.01;
 	for (float n = from; !(n <= to + tolerance && n >= to - tolerance); n += interval)
 		values.emplace_back(n);
-	values.emplace_back(to);  // dodgy fix......
+	values.emplace_back(to);  // dodgy fix...... adds the final value (assumes it is equal to values.back()+interval)
 	return values;
 }
 
