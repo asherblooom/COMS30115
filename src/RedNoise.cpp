@@ -1,4 +1,6 @@
+#include <CanvasPoint.h>
 #include <CanvasTriangle.h>
+#include <Colour.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
 #include <glm/glm.hpp>
@@ -12,62 +14,63 @@ std::vector<T> interpolate(T from, T to, int numberOfValues) {
 	if (numberOfValues <= 1)
 		return std::vector<T>{from};
 
-	T interval = (to - from) / float{numberOfValues - 1.0f};
-	T currValue{from};
+	T step = (to - from) / float{numberOfValues - 1.0f};
 	std::vector<T> values;
-
 	for (int i = 0; i < numberOfValues; i++) {
-		values.emplace_back(currValue);
-		currValue += interval;
+		values.emplace_back(from);
+		from += step;
 	}
 	return values;
 }
 
-void draw(DrawingWindow &window, std::vector<glm::vec3> &leftColumn, std::vector<glm::vec3> &rightColumn) {
-	window.clearPixels();
-	for (size_t y = 0; y < window.height; y++) {
-		glm::vec3 leftPoint = leftColumn.at(y);
-		glm::vec3 rightPoint = rightColumn.at(y);
-		std::vector<glm::vec3> colours = interpolate(leftPoint, rightPoint, window.width);
-		for (size_t x = 0; x < window.width; x++) {
-			float red = colours.at(x).r;
-			float green = colours.at(x).g;
-			float blue = colours.at(x).b;
-			uint32_t colour = (255 << 24) + (int(red) << 16) + (int(green) << 8) + int(blue);
-			window.setPixelColour(x, y, colour);
-		}
+void draw(DrawingWindow &window, float x, float y, Colour &colour) {
+	float red = colour.red;
+	float green = colour.green;
+	float blue = colour.blue;
+	uint32_t packedColour = (255 << 24) + (int(red) << 16) + (int(green) << 8) + int(blue);
+	window.setPixelColour(x, y, packedColour);
+}
+
+void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour = {255, 255, 255}) {
+	float xDiff = to.x - from.x;
+	float yDiff = to.y - from.y;
+	float numberOfValues = std::max(std::abs(xDiff), std::abs(yDiff));
+	float xStep = xDiff / numberOfValues;
+	float yStep = yDiff / numberOfValues;
+	for (int i = 0; i < numberOfValues; i++) {
+		draw(window, from.x, from.y, colour);
+		from.x += xStep;
+		from.y += yStep;
 	}
 }
 
+void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255}) {
+	drawLine(window, triangle.v0(), triangle.v1(), colour);
+	drawLine(window, triangle.v0(), triangle.v2(), colour);
+	drawLine(window, triangle.v1(), triangle.v2(), colour);
+}
+
 void handleEvent(SDL_Event event, DrawingWindow &window) {
-	// clang-format off
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_LEFT) std::cout << "LEFT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_RIGHT) std::cout << "RIGHT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_UP) std::cout << "UP" << std::endl;
-		else if (event.key.keysym.sym == SDLK_DOWN) std::cout << "DOWN" << std::endl;
+		if (event.key.keysym.sym == SDLK_u) {
+			Colour colour{std::rand() % 256, std::rand() % 256, std::rand() % 256};
+			CanvasTriangle triangle{{float(std::rand() % window.width), float(std::rand() % window.height)},
+									{float(std::rand() % window.width), float(std::rand() % window.height)},
+									{float(std::rand() % window.width), float(std::rand() % window.height)}};
+			drawStokedTriangle(window, triangle, colour);
+		}
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
 		window.saveBMP("output.bmp");
 	}
-	// clang-format on
 }
 
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-
-	glm::vec3 topLeft(255, 0, 0);		// red
-	glm::vec3 topRight(0, 0, 255);		// blue
-	glm::vec3 bottomRight(0, 255, 0);	// green
-	glm::vec3 bottomLeft(255, 255, 0);	// yellow
-	std::vector<glm::vec3> leftColumn = interpolate(topLeft, bottomLeft, window.height);
-	std::vector<glm::vec3> rightColumn = interpolate(topRight, bottomRight, window.height);
-
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		draw(window, leftColumn, rightColumn);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
