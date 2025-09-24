@@ -1,5 +1,5 @@
-#include <array>
 #include "DrawingWindow.h"
+#include <array>
 // On some platforms you may need to include <cstring> (if you compiler can't find memset !)
 
 DrawingWindow::DrawingWindow() {}
@@ -12,9 +12,9 @@ DrawingWindow::DrawingWindow(int w, int h, bool fullscreen) : width(w), height(h
 	window = SDL_CreateWindow("COMS30020", ANYWHERE, ANYWHERE, width, height, flags);
 	if (!window) printMessageAndQuit("Could not set video mode: ", SDL_GetError());
 	// Set rendering to software (hardware acceleration doesn't work on all platforms)
-	flags = SDL_RENDERER_SOFTWARE;
+	// flags = SDL_RENDERER_SOFTWARE;
 	// You could try hardware acceleration if you like - by uncommenting the below line
-	// flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
+	flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
 	renderer = SDL_CreateRenderer(window, -1, flags);
 	if (!renderer) printMessageAndQuit("Could not create renderer: ", SDL_GetError());
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
@@ -32,9 +32,9 @@ void DrawingWindow::renderFrame() {
 }
 
 void DrawingWindow::saveBMP(const std::string &filename) const {
-	auto surface = SDL_CreateRGBSurfaceFrom((void *) pixelBuffer.data(), width, height, 32,
-	                                        width * sizeof(uint32_t),
-	                                        0xFF << 16, 0xFF << 8, 0xFF << 0, 0xFF << 24);
+	auto surface = SDL_CreateRGBSurfaceFrom((void *)pixelBuffer.data(), width, height, 32,
+											width * sizeof(uint32_t),
+											0xFF << 16, 0xFF << 8, 0xFF << 0, 0xFF << 24);
 	SDL_SaveBMP(surface, filename.c_str());
 }
 
@@ -45,18 +45,15 @@ void DrawingWindow::savePPM(const std::string &filename) const {
 	outputStream << "255\n";
 
 	for (size_t i = 0; i < width * height; i++) {
-		std::array<char, 3> rgb {{
-				static_cast<char> ((pixelBuffer[i] >> 16) & 0xFF),
-				static_cast<char> ((pixelBuffer[i] >> 8) & 0xFF),
-				static_cast<char> ((pixelBuffer[i] >> 0) & 0xFF)
-		}};
+		std::array<char, 3> rgb{{static_cast<char>((pixelBuffer[i] >> 16) & 0xFF),
+								 static_cast<char>((pixelBuffer[i] >> 8) & 0xFF),
+								 static_cast<char>((pixelBuffer[i] >> 0) & 0xFF)}};
 		outputStream.write(rgb.data(), 3);
 	}
 	outputStream.close();
 }
 
-void DrawingWindow::exitCleanly()
-{
+void DrawingWindow::exitCleanly() {
 	SDL_DestroyTexture(texture);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
@@ -66,9 +63,12 @@ void DrawingWindow::exitCleanly()
 
 bool DrawingWindow::pollForInputEvents(SDL_Event &event) {
 	if (SDL_PollEvent(&event)) {
-		if (event.type == SDL_QUIT) exitCleanly();
-		else if ((event.type == SDL_KEYDOWN) && (event.key.keysym.sym == SDLK_ESCAPE)) exitCleanly();
-		else if ((event.type == SDL_WINDOWEVENT) && (event.window.event == SDL_WINDOWEVENT_CLOSE)) exitCleanly();
+		if (event.type == SDL_QUIT)
+			exitCleanly();
+		else if ((event.type == SDL_KEYDOWN) && (event.key.keysym.sym == SDLK_ESCAPE))
+			exitCleanly();
+		else if ((event.type == SDL_WINDOWEVENT) && (event.window.event == SDL_WINDOWEVENT_CLOSE))
+			exitCleanly();
 		SDL_Event dummy;
 		// Clear the event queue by getting all available events
 		// This seems like bad practice (because it will skip some events) however preventing backlog is paramount !
@@ -81,14 +81,16 @@ bool DrawingWindow::pollForInputEvents(SDL_Event &event) {
 void DrawingWindow::setPixelColour(size_t x, size_t y, uint32_t colour) {
 	if ((x >= width) || (y >= height)) {
 		std::cout << x << "," << y << " not on visible screen area" << std::endl;
-	} else pixelBuffer[(y * width) + x] = colour;
+	} else
+		pixelBuffer[(y * width) + x] = colour;
 }
 
 uint32_t DrawingWindow::getPixelColour(size_t x, size_t y) {
 	if ((x >= width) || (y >= height)) {
 		std::cout << x << "," << y << " not on visible screen area" << std::endl;
 		return -1;
-	} else return pixelBuffer[(y * width) + x];
+	} else
+		return pixelBuffer[(y * width) + x];
 }
 
 void DrawingWindow::clearPixels() {
