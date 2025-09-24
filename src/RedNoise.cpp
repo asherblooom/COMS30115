@@ -8,8 +8,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 1920
+#define HEIGHT 1060
 
 template <typename T>
 std::vector<T> interpolate(T from, T to, int numberOfValues) {
@@ -54,10 +54,47 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 
 void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255}) {
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
-	if (triangle.vertices.at(0).y == triangle.vertices.at(1).y || triangle.vertices.at(1).y == triangle.vertices.at(2).y) {
-		// easy peasy
+	if (triangle.vertices.at(0).y == triangle.vertices.at(1).y) {
+		// interpolate to make lines
+		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
+												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
+		std::vector<float> line2Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
+												 triangle.vertices.at(2).y - triangle.vertices.at(1).y);
+		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(0).y; y++) {
+			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
+				draw(window, x, y + triangle.vertices.at(0).y, colour);
+			}
+		}
+	} else if (triangle.vertices.at(1).y == triangle.vertices.at(2).y) {
+		// interpolate to make lines
+		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
+												 triangle.vertices.at(1).y - triangle.vertices.at(0).y);
+		std::vector<float> line2Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
+												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
+		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(0).y; y++) {
+			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
+				draw(window, x, y + triangle.vertices.at(0).y, colour);
+			}
+		}
 	} else {
 		// harder
+		// interpolate to make lines
+		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
+												 triangle.vertices.at(1).y - triangle.vertices.at(0).y);
+		std::vector<float> line2Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
+												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
+		std::vector<float> line3Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
+												 triangle.vertices.at(2).y - triangle.vertices.at(1).y);
+		for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
+			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
+				draw(window, x, y + triangle.vertices.at(0).y, colour);
+			}
+		}
+		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
+			for (float x = line1Xs.at(y); x <= line3Xs.at(y); x++) {
+				draw(window, x, y + triangle.vertices.at(1).y, colour);
+			}
+		}
 	}
 
 	drawStokedTriangle(window, triangle, {255, 255, 255});
@@ -88,8 +125,10 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	while (true) {
+		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
+		drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
