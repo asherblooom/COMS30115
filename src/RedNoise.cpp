@@ -3,6 +3,8 @@
 #include <Colour.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
+#include <algorithm>
+#include <cmath>
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -50,6 +52,17 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	drawLine(window, triangle.v1(), triangle.v2(), colour);
 }
 
+void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255}) {
+	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
+	if (triangle.vertices.at(0).y == triangle.vertices.at(1).y || triangle.vertices.at(1).y == triangle.vertices.at(2).y) {
+		// easy peasy
+	} else {
+		// harder
+	}
+
+	drawStokedTriangle(window, triangle, {255, 255, 255});
+}
+
 void handleEvent(SDL_Event event, DrawingWindow &window) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_u) {
@@ -58,6 +71,12 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 									{float(std::rand() % window.width), float(std::rand() % window.height)},
 									{float(std::rand() % window.width), float(std::rand() % window.height)}};
 			drawStokedTriangle(window, triangle, colour);
+		} else if (event.key.keysym.sym == SDLK_f) {
+			Colour colour{std::rand() % 256, std::rand() % 256, std::rand() % 256};
+			CanvasTriangle triangle{{float(std::rand() % window.width), float(std::rand() % window.height)},
+									{float(std::rand() % window.width), float(std::rand() % window.height)},
+									{float(std::rand() % window.width), float(std::rand() % window.height)}};
+			drawFilledTriangle(window, triangle, colour);
 		}
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
