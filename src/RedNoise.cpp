@@ -79,22 +79,27 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	} else {
 		// harder
 		// interpolate to make lines
-		std::vector<float> line01Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
+		std::vector<float> line01xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
 												  triangle.vertices.at(1).y - triangle.vertices.at(0).y);
-		std::vector<float> line02Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
+		std::vector<float> line02xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
 												  triangle.vertices.at(2).y - triangle.vertices.at(0).y);
-		std::vector<float> line12Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
+		std::vector<float> line12xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
 												  triangle.vertices.at(2).y - triangle.vertices.at(1).y);
-		for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
-			for (float x = line01Xs.at(y); x <= line02Xs.at(y); x++) {
-				draw(window, x, y + triangle.vertices.at(0).y, colour);
+		// TODO: need to make this better
+		if (triangle.vertices.at(1).x < triangle.vertices.at(0).x && triangle.vertices.at(1).x < triangle.vertices.at(2).x) {
+			for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
+				for (float x = line01xs.at(y); x <= line02xs.at(y); x++) {
+					draw(window, x, y + triangle.vertices.at(0).y, colour);
+				}
+			}
+			for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
+				// TODO: problem here: line02xs.at(y + triangle.vertices.at(1).y)
+
+				for (float x = line12xs.at(y); x <= line02xs.at(y + (triangle.vertices.at(1).y - triangle.vertices.at(0).y)); x++) {
+					draw(window, x, y + triangle.vertices.at(1).y, colour);
+				}
 			}
 		}
-		// for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
-		// 	for (float x = line12Xs.at(y); x <= line02Xs.at(y + triangle.vertices.at(1).y); x++) {
-		// 		draw(window, x, y + triangle.vertices.at(1).y, colour);
-		// 	}
-		// }
 	}
 
 	drawStokedTriangle(window, triangle, {255, 255, 255});
@@ -128,7 +133,7 @@ int main(int argc, char *argv[]) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
+		// drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
