@@ -130,9 +130,9 @@ void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int
 	for (int y = yStart; y < yEnd; y++) {
 		float xStart = leftXs->at(y - yStart);
 		float xEnd = rightXs->at(y - yStart);
-		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y), rightTexLine->at(y), xEnd - xStart);
+		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y - yStart), rightTexLine->at(y - yStart), xEnd - xStart);
 		for (float x = xStart; x <= xEnd; x++) {
-			glm::vec2 texPos = texLine.at(x);
+			glm::vec2 texPos = texLine.at(x - xStart);
 			window.setPixelColour(x, y, tex.pixels.at(texPos.y * tex.width + texPos.x));
 		}
 	}
@@ -153,9 +153,9 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Textur
 	std::vector<float> line02xs = interpolate(v0.x, v2.x, v2.y - v0.y);
 	std::vector<float> line12xs = interpolate(v1.x, v2.x, v2.y - v1.y);
 
-	std::vector<glm::vec2> texLine01 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t1.x, t1.y}, t1.y - t0.y);
-	std::vector<glm::vec2> texLine02 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t2.x, t2.y}, t2.y - t0.y);
-	std::vector<glm::vec2> texLine12 = interpolate(glm::vec2{t1.x, t1.y}, glm::vec2{t2.x, t2.y}, t2.y - t1.y);
+	std::vector<glm::vec2> texLine01 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t1.x, t1.y}, v1.y - v0.y);
+	std::vector<glm::vec2> texLine02 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t2.x, t2.y}, v2.y - v0.y);
+	std::vector<glm::vec2> texLine12 = interpolate(glm::vec2{t1.x, t1.y}, glm::vec2{t2.x, t2.y}, v2.y - v1.y);
 
 	if (v0.y == v1.y) {
 		textureFlatTriangle(window, texture, v0.y, v2.y, line02xs, line12xs, texLine02, texLine12);
