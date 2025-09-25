@@ -52,64 +52,47 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	drawLine(window, triangle.v1(), triangle.v2(), colour);
 }
 
+void fillFlatTriangle(DrawingWindow &window, int yStart, int yEnd, std::vector<float> &xs1, std::vector<float> &xs2, Colour &colour) {
+	// these are pointers to avoid copying
+	std::vector<float> *leftXs;
+	std::vector<float> *rightXs;
+	// for triangle to be valid, the lines (the xs) cannot intersect other than at positions 0 and size - 1
+	// so to check which side each is on, we take the min halfway point and use that
+	float minHalfway = std::min(xs1.size() / 2, xs2.size() / 2);
+	if (xs1.at(minHalfway) <= xs2.at(minHalfway)) {
+		leftXs = &xs1;
+		rightXs = &xs2;
+	} else {
+		leftXs = &xs2;
+		rightXs = &xs1;
+	}
+	for (int y = yStart; y < yEnd; y++) {
+		for (float x = leftXs->at(y - yStart); x <= rightXs->at(y - yStart); x++) {
+			draw(window, x, y, colour);
+		}
+	}
+}
+
 void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255}) {
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
-	if (triangle.vertices.at(0).y == triangle.vertices.at(1).y) {
-		// interpolate to make lines
-		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
-												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
-		std::vector<float> line2Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
-												 triangle.vertices.at(2).y - triangle.vertices.at(1).y);
-		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(0).y; y++) {
-			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
-				draw(window, x, y + triangle.vertices.at(0).y, colour);
-			}
-		}
-	} else if (triangle.vertices.at(1).y == triangle.vertices.at(2).y) {
-		// interpolate to make lines
-		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
-												 triangle.vertices.at(1).y - triangle.vertices.at(0).y);
-		std::vector<float> line2Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
-												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
-		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(0).y; y++) {
-			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
-				draw(window, x, y + triangle.vertices.at(0).y, colour);
-			}
-		}
+	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
+	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
+	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
+	// interpolate to make vectors of all x-coords in each line
+	std::vector<float> line01xs = interpolate(v0.x, v1.x, v1.y - v0.y);
+	std::vector<float> line02xs = interpolate(v0.x, v2.x, v2.y - v0.y);
+	std::vector<float> line12xs = interpolate(v1.x, v2.x, v2.y - v1.y);
+
+	if (v0.y == v1.y) {
+		fillFlatTriangle(window, v0.y, v2.y, line02xs, line12xs, colour);
+	} else if (v1.y == v2.y) {
+		fillFlatTriangle(window, v0.y, v2.y, line01xs, line02xs, colour);
 	} else {
-		// harder
-		// interpolate to make lines
-		std::vector<float> line01xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
-												  triangle.vertices.at(1).y - triangle.vertices.at(0).y);
-		std::vector<float> line02xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
-												  triangle.vertices.at(2).y - triangle.vertices.at(0).y);
-		std::vector<float> line12xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
-												  triangle.vertices.at(2).y - triangle.vertices.at(1).y);
-		// TODO: need to make this better
-		// use Xs!
-		if (triangle.vertices.at(1).x < line02xs.at(triangle.vertices.at(1).y - triangle.vertices.at(0).y)) {
-			for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
-				for (float x = line01xs.at(y); x <= line02xs.at(y); x++) {
-					draw(window, x, y + triangle.vertices.at(0).y, colour);
-				}
-			}
-			for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
-				for (float x = line12xs.at(y); x <= line02xs.at(y + (triangle.vertices.at(1).y - triangle.vertices.at(0).y)); x++) {
-					draw(window, x, y + triangle.vertices.at(1).y, colour);
-				}
-			}
-		} else {
-			for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
-				for (float x = line02xs.at(y); x <= line01xs.at(y); x++) {
-					draw(window, x, y + triangle.vertices.at(0).y, colour);
-				}
-			}
-			for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
-				for (float x = line02xs.at(y + (triangle.vertices.at(1).y - triangle.vertices.at(0).y)); x <= line12xs.at(y); x++) {
-					draw(window, x, y + triangle.vertices.at(1).y, colour);
-				}
-			}
-		}
+		// need to fill triangle in 2 goes
+		// the first x value we want to use must be at position 0, so we have to shorten front of vector for bottom part of line
+		std::vector<float> bottomLine02xs{line02xs.begin() + (v1.y - v0.y), line02xs.end()};
+		fillFlatTriangle(window, v0.y, v1.y, line01xs, line02xs, colour);
+		fillFlatTriangle(window, v1.y, v2.y, line12xs, bottomLine02xs, colour);
 	}
 
 	drawStokedTriangle(window, triangle, {255, 255, 255});
@@ -143,7 +126,7 @@ int main(int argc, char *argv[]) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		// drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
+		drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
