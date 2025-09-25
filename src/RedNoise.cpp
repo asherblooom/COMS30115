@@ -86,16 +86,26 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 		std::vector<float> line12xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
 												  triangle.vertices.at(2).y - triangle.vertices.at(1).y);
 		// TODO: need to make this better
-		if (triangle.vertices.at(1).x < triangle.vertices.at(0).x && triangle.vertices.at(1).x < triangle.vertices.at(2).x) {
+		// use Xs!
+		if (triangle.vertices.at(1).x < line02xs.at(triangle.vertices.at(1).y - triangle.vertices.at(0).y)) {
 			for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
 				for (float x = line01xs.at(y); x <= line02xs.at(y); x++) {
 					draw(window, x, y + triangle.vertices.at(0).y, colour);
 				}
 			}
 			for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
-				// TODO: problem here: line02xs.at(y + triangle.vertices.at(1).y)
-
 				for (float x = line12xs.at(y); x <= line02xs.at(y + (triangle.vertices.at(1).y - triangle.vertices.at(0).y)); x++) {
+					draw(window, x, y + triangle.vertices.at(1).y, colour);
+				}
+			}
+		} else {
+			for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
+				for (float x = line02xs.at(y); x <= line01xs.at(y); x++) {
+					draw(window, x, y + triangle.vertices.at(0).y, colour);
+				}
+			}
+			for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
+				for (float x = line02xs.at(y + (triangle.vertices.at(1).y - triangle.vertices.at(0).y)); x <= line12xs.at(y); x++) {
 					draw(window, x, y + triangle.vertices.at(1).y, colour);
 				}
 			}
