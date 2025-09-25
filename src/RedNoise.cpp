@@ -79,22 +79,22 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	} else {
 		// harder
 		// interpolate to make lines
-		std::vector<float> line1Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
-												 triangle.vertices.at(1).y - triangle.vertices.at(0).y);
-		std::vector<float> line2Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
-												 triangle.vertices.at(2).y - triangle.vertices.at(0).y);
-		std::vector<float> line3Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
-												 triangle.vertices.at(2).y - triangle.vertices.at(1).y);
+		std::vector<float> line01Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(1).x,
+												  triangle.vertices.at(1).y - triangle.vertices.at(0).y);
+		std::vector<float> line02Xs = interpolate(triangle.vertices.at(0).x, triangle.vertices.at(2).x,
+												  triangle.vertices.at(2).y - triangle.vertices.at(0).y);
+		std::vector<float> line12Xs = interpolate(triangle.vertices.at(1).x, triangle.vertices.at(2).x,
+												  triangle.vertices.at(2).y - triangle.vertices.at(1).y);
 		for (float y = 0; y < triangle.vertices.at(1).y - triangle.vertices.at(0).y; y++) {
-			for (float x = line1Xs.at(y); x <= line2Xs.at(y); x++) {
+			for (float x = line01Xs.at(y); x <= line02Xs.at(y); x++) {
 				draw(window, x, y + triangle.vertices.at(0).y, colour);
 			}
 		}
-		for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
-			for (float x = line1Xs.at(y); x <= line3Xs.at(y); x++) {
-				draw(window, x, y + triangle.vertices.at(1).y, colour);
-			}
-		}
+		// for (float y = 0; y < triangle.vertices.at(2).y - triangle.vertices.at(1).y; y++) {
+		// 	for (float x = line12Xs.at(y); x <= line02Xs.at(y + triangle.vertices.at(1).y); x++) {
+		// 		draw(window, x, y + triangle.vertices.at(1).y, colour);
+		// 	}
+		// }
 	}
 
 	drawStokedTriangle(window, triangle, {255, 255, 255});
