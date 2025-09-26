@@ -144,12 +144,9 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Textur
 	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
 	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
-
-	std::vector<TexturePoint> texturePoints = {v0.texturePoint, v1.texturePoint, v2.texturePoint};
-	std::sort(texturePoints.begin(), texturePoints.end(), [](TexturePoint &a, TexturePoint &b) { return a.y < b.y; });
-	TexturePoint &t0 = texturePoints.at(0);
-	TexturePoint &t1 = texturePoints.at(1);
-	TexturePoint &t2 = texturePoints.at(2);
+	TexturePoint &t0 = v0.texturePoint;
+	TexturePoint &t1 = v1.texturePoint;
+	TexturePoint &t2 = v2.texturePoint;
 
 	if (t0.x < 0 || t0.x > texture.width || t1.x < 0 || t1.x > texture.width || t2.x < 0 || t2.x > texture.width || t0.y < 0 || t2.y > texture.height) {
 		std::cerr << "ERROR: texture points are outside of texture\n";
