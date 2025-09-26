@@ -127,13 +127,46 @@ void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int
 		rightTexLine = &texLine1;
 	}
 
+	// for (int y = 0; y < yEnd - yStart; y++) {
+	// 	float xStart = leftXs->at(y);
+	// 	float xEnd = rightXs->at(y);
+	// 	std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y), rightTexLine->at(y), xEnd - xStart);
+	// 	for (float x = 0; x < xEnd - xStart; x++) {
+	// 		glm::vec2 texPos = texLine.at(x);
+	// 		window.setPixelColour(x + xStart, y + yStart, tex.pixels.at(texPos.y * tex.width + texPos.x));
+	// 	}
+	// }
 	for (int y = yStart; y < yEnd; y++) {
-		float xStart = leftXs->at(y - yStart);
-		float xEnd = rightXs->at(y - yStart);
-		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y - yStart), rightTexLine->at(y - yStart), xEnd - xStart);
-		for (float x = xStart; x <= xEnd; x++) {
-			glm::vec2 texPos = texLine.at(x - xStart);
-			window.setPixelColour(x, y, tex.pixels.at(texPos.y * tex.width + texPos.x));
+		float xStart_f = leftXs->at(y - yStart);
+		float xEnd_f = rightXs->at(y - yStart);
+
+		// Round to the nearest integer pixel coordinates
+		int xStart = std::round(xStart_f);
+		int xEnd = std::round(xEnd_f);
+
+		// Calculate number of pixels to draw on this scanline
+		int numPixels = xEnd - xStart;
+		if (numPixels <= 0) continue;  // Nothing to draw
+
+		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y - yStart), rightTexLine->at(y - yStart), numPixels);
+
+		for (int x = xStart; x <= xEnd; x++) {
+			int index = x - xStart;
+			// Safety check to ensure index matches vector size
+			if (index < texLine.size()) {
+				glm::vec2 texPos = texLine.at(index);
+				// Also good practice to cast texture coordinates to int before using them
+				int texX = static_cast<int>(texPos.x);
+				int texY = static_cast<int>(texPos.y);
+
+				// And check if they are within the texture's bounds
+				if (texX >= 0 && texX < tex.width && texY >= 0 && texY < tex.height) {
+					uint32_t colour = tex.pixels.at(texY * tex.width + texX);
+					// window.setPixelColour(x, y, colour);
+					Colour col = {255, 0, 0};
+					draw(window, x, y, col);
+				}
+			}
 		}
 	}
 }
@@ -144,9 +177,11 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Textur
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
 	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
 
-	TexturePoint &t0 = v0.texturePoint;
-	TexturePoint &t1 = v1.texturePoint;
-	TexturePoint &t2 = v2.texturePoint;
+	std::vector<TexturePoint> texturePoints = {v0.texturePoint, v1.texturePoint, v2.texturePoint};
+	std::sort(texturePoints.begin(), texturePoints.end(), [](TexturePoint &a, TexturePoint &b) { return a.y < b.y; });
+	TexturePoint &t0 = texturePoints.at(0);
+	TexturePoint &t1 = texturePoints.at(1);
+	TexturePoint &t2 = texturePoints.at(2);
 
 	// interpolate to make vectors of all x-coords in each line
 	std::vector<float> line01xs = interpolate(v0.x, v1.x, v1.y - v0.y);
@@ -200,7 +235,11 @@ int main(int argc, char *argv[]) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// drawFilledTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {120, 100, 255});
-		drawTexturedTriangle(window, {{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}}, {"texture.ppm"});
+		CanvasTriangle triangle{{WIDTH / 2.0f, HEIGHT - 100}, {WIDTH - 1, HEIGHT - 100}, {WIDTH / 2.0f + 100, 100}};
+		triangle.v0().texturePoint = {triangle.v0().x, triangle.v0().y};
+		triangle.v1().texturePoint = {triangle.v1().x, triangle.v1().y};
+		triangle.v2().texturePoint = {triangle.v2().x, triangle.v2().y};
+		drawTexturedTriangle(window, triangle, {"texture.ppm"});
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
