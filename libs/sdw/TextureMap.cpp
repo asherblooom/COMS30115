@@ -1,10 +1,10 @@
 #include "TextureMap.h"
-#include <filesystem>
+#include <fstream>
 
 TextureMap::TextureMap() = default;
 TextureMap::TextureMap(const std::string &filename) {
 	std::ifstream inputStream(filename, std::ifstream::binary);
-	if(! inputStream) std::cout << "The file " << filename << " cannot be accessed by the TextureMap class...\nThis is usually because the PPM file is in the wrong folder\nOr you are passing in the wrong relative path" << std::endl;
+	if (!inputStream) std::cout << "The file " << filename << " cannot be accessed by the TextureMap class...\nThis is usually because the PPM file is in the wrong folder\nOr you are passing in the wrong relative path" << std::endl;
 	std::string nextLine;
 	// Get the "P6" magic number
 	std::getline(inputStream, nextLine);

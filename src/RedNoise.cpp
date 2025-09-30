@@ -48,6 +48,40 @@ void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour co
 	}
 }
 
+void drawBaryTriangle(DrawingWindow &window, CanvasTriangle triangle) {
+	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
+	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
+	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
+	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
+	std::vector<float> xs1, xs2;
+	if (v0.y == v1.y) {
+		xs1 = interpolate(v0.x, v2.x, v2.y - v0.y);
+		xs2 = interpolate(v1.x, v2.x, v2.y - v1.y);
+	} else if (v1.y == v2.y) {
+		xs1 = interpolate(v0.x, v1.x, v1.y - v0.y);
+		xs2 = interpolate(v0.x, v2.x, v2.y - v0.y);
+	}
+
+	// these are pointers to avoid copying
+	std::vector<float> *leftXs;
+	std::vector<float> *rightXs;
+	float minHalfway = std::min(xs1.size() / 2, xs2.size() / 2);
+	if (xs1.at(minHalfway) <= xs2.at(minHalfway)) {
+		leftXs = &xs1;
+		rightXs = &xs2;
+	} else {
+		leftXs = &xs2;
+		rightXs = &xs1;
+	}
+	for (int y = v0.y; y < v2.y; y++) {
+		for (float x = leftXs->at(y - v0.y); x <= rightXs->at(y - v0.y); x++) {
+			glm::vec3 bary = convertToBarycentricCoordinates({v0.x, v0.y}, {v1.x, v1.y}, {v2.x, v2.y}, {x, y});
+			Colour baryColour{(int)(bary.x * 255), (int)(bary.z * 255), (int)(bary.y * 255)};
+			draw(window, x, y, baryColour);
+		}
+	}
+}
+
 void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255}) {
 	drawLine(window, triangle.v0(), triangle.v1(), colour);
 	drawLine(window, triangle.v0(), triangle.v2(), colour);
@@ -141,9 +175,9 @@ void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int
 
 void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap texture) {
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
-	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
-	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
-	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
+	CanvasPoint &v0 = triangle.vertices[0];	 // vertex with lowest y value
+	CanvasPoint &v1 = triangle.vertices[1];	 // vertex with mid y value
+	CanvasPoint &v2 = triangle.vertices[2];	 // vertex with highest y value
 	TexturePoint &t0 = v0.texturePoint;
 	TexturePoint &t1 = v1.texturePoint;
 	TexturePoint &t2 = v2.texturePoint;
@@ -206,11 +240,13 @@ int main(int argc, char *argv[]) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		CanvasTriangle triangle{{160, 10}, {300, 230}, {10, 150}};
-		triangle.v0().texturePoint = {195, 5};
-		triangle.v1().texturePoint = {395, 380};
-		triangle.v2().texturePoint = {65, 330};
-		drawTexturedTriangle(window, triangle, {"texture.ppm"});
+		// CanvasTriangle triangle{{160, 10}, {300, 230}, {10, 150}};
+		// triangle.v0().texturePoint = {195, 5};
+		// triangle.v1().texturePoint = {395, 380};
+		// triangle.v2().texturePoint = {65, 330};
+		// drawTexturedTriangle(window, triangle, {"texture.ppm"});
+		CanvasTriangle triangle{{0, HEIGHT - 1}, {WIDTH - 1, HEIGHT - 1}, {WIDTH / 2.0f, 0}};
+		drawBaryTriangle(window, triangle);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
