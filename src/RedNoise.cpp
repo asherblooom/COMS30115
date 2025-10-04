@@ -7,6 +7,7 @@
 #include <cmath>
 #include <glm/glm.hpp>
 #include <vector>
+#include "ObjReader.cpp"
 #include "TextureMap.h"
 #include "TexturePoint.h"
 
@@ -236,6 +237,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
+	readObjFile("cornell-box.obj", 0.35);
 	while (true) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
