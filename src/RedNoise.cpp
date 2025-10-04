@@ -237,7 +237,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-	readObjFile("cornell-box.obj", 0.35);
+	readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
 	while (true) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !

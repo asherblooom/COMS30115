@@ -1,75 +1,73 @@
 #include <fstream>
+#include <glm/glm.hpp>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 #include "ModelTriangle.h"
 #include "Utils.h"
 
-std::vector<ModelTriangle> readObjFile(std::string filename, float scale) {
-	std::vector<ModelTriangle> triangles;
-	std::vector<int> vertexIndices;
-	// std::vector<int> uvIndices;
-	// std::vector<int> normalIndices;
-	std::vector<glm::vec3> tempVertices;
-	// std::vector<glm::vec2> tempUvs;
-	// std::vector<glm::vec3> tempNormals;
+std::map<std::string, Colour> readMtlFile(std::string filename) {
+	std::map<std::string, Colour> palette;
 
 	std::ifstream inputStream(filename, std::ios::in);
 	if (!inputStream) std::cerr << "ERROR: '" << filename << "' not found\n";
 	std::string line;
+
+	std::string currColourName;
 	while (std::getline(inputStream, line)) {
 		if (line.size() == 0) continue;
-		switch (line[0]) {
-			case '#':
-				continue;
-			case 'v': {
-				std::vector<std::string> s = split(line, ' ');
-				// if (line[1] == 't')
-				// 	tempUvs.emplace_back(std::stof(s.at(1)), std::stof(s.at(2)));
-				// else if (line[1] == 'n')
-				// 	tempNormals.emplace_back(std::stof(s.at(1)), std::stof(s.at(2)), std::stof(s.at(3)));
-				// else
-				tempVertices.emplace_back(std::stof(s.at(1)) * scale, std::stof(s.at(2)) * scale, std::stof(s.at(3)) * scale);
-				break;
-			}
-			case 'f': {
-				auto s = split(line, ' ');
-				if (s.size() > 4) std::cerr << "ERROR::OBJ: can only handle 3 indices per 'f' line!\n";
-				for (int i = 1; i < s.size(); i++) {
-					std::vector<std::string> indices = split(s.at(i), '/');
+		std::vector<std::string> s = split(line, ' ');
 
-					vertexIndices.push_back(std::stoi(indices.at(0)));
-					// if (indices.size() > 1 && indices.at(1) != "")
-					// 	uvIndices.emplace_back(std::stof(indices.at(1)));
-					// if (indices.size() > 2 && indices.at(2) != "")
-					// 	normalIndices.emplace_back(std::stof(indices.at(2)));
-				}
-				break;
-			}
-			default:
-				continue;
+		if (s.at(0) == "newmtl") {
+			currColourName = s.at(1);
+		} else if (s.at(0) == "Kd") {
+			palette.insert({currColourName, Colour{int(std::stof(s.at(1)) * 255),
+												   int(std::stof(s.at(2)) * 255),
+												   int(std::stof(s.at(3)) * 255)}});
+		}
+	}
+
+	inputStream.close();
+	return palette;
+}
+
+std::vector<ModelTriangle> readObjFile(std::string objFile, std::string mtlFile, float scale) {
+	std::map<std::string, Colour> palette = readMtlFile(mtlFile);
+
+	std::vector<ModelTriangle> triangles;
+	std::vector<glm::vec3> tempVertices;
+	Colour currColour;
+	// std::vector<glm::vec2> tempUvs;
+	// std::vector<glm::vec3> tempNormals;
+
+	std::ifstream inputStream(objFile, std::ios::in);
+	if (!inputStream) std::cerr << "ERROR: '" << objFile << "' not found\n";
+	std::string line;
+	while (std::getline(inputStream, line)) {
+		if (line.size() == 0) continue;
+		std::vector<std::string> s = split(line, ' ');
+
+		if (s.at(0) == "v") {
+			tempVertices.emplace_back(std::stof(s.at(1)) * scale, std::stof(s.at(2)) * scale, std::stof(s.at(3)) * scale);
+		}
+		if (s.at(0) == "f") {
+			if (s.size() > 4) std::cerr << "ERROR::OBJ: can only handle 3 indices per 'f' line!\n";
+			std::vector<std::string> indices1 = split(s.at(1), '/');
+			std::vector<std::string> indices2 = split(s.at(2), '/');
+			std::vector<std::string> indices3 = split(s.at(3), '/');
+
+			glm::vec3 v1, v2, v3;
+			v1 = tempVertices.at(std::stoi(indices1.at(0)) - 1);
+			v2 = tempVertices.at(std::stoi(indices2.at(0)) - 1);
+			v3 = tempVertices.at(std::stoi(indices3.at(0)) - 1);
+			triangles.emplace_back(v1, v2, v3, currColour);
+		}
+		if (s.at(0) == "usemtl") {
+			currColour = palette.at(s.at(1));
 		}
 	}
 	inputStream.close();
 
-	for (int i = 0; i < vertexIndices.size(); i += 3) {
-		glm::vec3 i1, i2, i3;
-		i1 = tempVertices.at(vertexIndices.at(i) - 1);
-		i2 = tempVertices.at(vertexIndices.at(i + 1) - 1);
-		i3 = tempVertices.at(vertexIndices.at(i + 2) - 1);
-		triangles.emplace_back(i1, i2, i3, Colour{255, 255, 255});
-	}
-	//
-	// for (int i = 0; i < normalIndices.size(); i += 3) {
-	// 	glm::vec3 normals{temp_normals.at(normalIndices.at(i) - 1),
-	// 					  temp_normals.at(normalIndices.at(i + 1) - 1),
-	// 					  temp_normals.at(normalIndices.at(i + 2) - 1)};
-	// 	data.normals.push_back(normals);
-	// }
-	// for (int i = 0; i < uvIndices.size(); i += 2) {
-	// 	glm::vec2 uvs{temp_uvs.at(uvIndices.at(i) - 1),
-	// 				  temp_uvs.at(uvIndices.at(i + 1) - 1)};
-	// 	data.uvs.push_back(uvs);
-	// }
 	return triangles;
 }
