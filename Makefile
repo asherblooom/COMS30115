@@ -1,10 +1,11 @@
-PROJECT_NAME := RedNoise
+PROJECT_NAME := Graphics
 
 BUILD_DIR := build
 
 # Define the names of key files
-SOURCE_FILE := src/$(PROJECT_NAME).cpp
-OBJECT_FILE := $(BUILD_DIR)/$(PROJECT_NAME).o
+SOURCE_DIR := ./src/
+SOURCE_FILES := $(wildcard $(SOURCE_DIR)*.cpp)
+OBJECT_FILES := $(patsubst $(SOURCE_DIR)%.cpp, $(BUILD_DIR)/%.o, $(SOURCE_FILES))
 EXECUTABLE := $(BUILD_DIR)/$(PROJECT_NAME)
 SDW_DIR := ./libs/sdw/
 GLM_DIR := ./libs/glm-0.9.7.2/
@@ -34,9 +35,9 @@ SDW_LINKER_FLAGS := $(SDW_OBJECT_FILES)
 default: debug
 
 # Rule to compile and link for use with a debugger (although works fine even if you aren't using a debugger !)
-debug: $(SDW_OBJECT_FILES)
-	$(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
-	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
+debug: $(SDW_OBJECT_FILES) $(OBJECT_FILES)
+	# $(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILES) $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to help find runtime errors (when you get a segmentation fault)
@@ -63,6 +64,12 @@ $(BUILD_DIR)/%.o: $(SDW_DIR)%.cpp
 	@mkdir -p $(BUILD_DIR)
 	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
+# rule for building all of the happy kids
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)%.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+
+
 # Files to remove during clean
 clean:
-	rm $(BUILD_DIR)/*
+	rm -f $(BUILD_DIR)/*
