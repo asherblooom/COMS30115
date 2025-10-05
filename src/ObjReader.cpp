@@ -1,11 +1,9 @@
+#include "ObjReader.hpp"
+#include <Utils.h>
 #include <fstream>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <map>
-#include <string>
-#include <vector>
-#include "ModelTriangle.h"
-#include "Utils.h"
 
 std::map<std::string, Colour> readMtlFile(std::string filename) {
 	std::map<std::string, Colour> palette;
