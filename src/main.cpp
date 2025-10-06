@@ -11,6 +11,8 @@
 #define HEIGHT 1060
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
+	vertexPosition.x *= -500;
+	vertexPosition.y *= 500;
 	vertexPosition -= cameraPosition;
 	return {(vertexPosition.x * focalLength) / vertexPosition.z + WIDTH / 2.0f, (vertexPosition.y * focalLength) / vertexPosition.z + HEIGHT / 2.0f};
 }
@@ -54,7 +56,7 @@ int main(int argc, char *argv[]) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		for (auto &tri : triangles) {
-			drawStokedTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 1000), tri.colour);
+			drawFilledTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
 		}
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !

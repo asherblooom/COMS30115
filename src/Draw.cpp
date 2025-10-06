@@ -108,9 +108,9 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
 	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
 	// interpolate to make vectors of all x-coords in each line
-	std::vector<float> line01xs = interpolate(v0.x, v1.x, v1.y - v0.y);
-	std::vector<float> line02xs = interpolate(v0.x, v2.x, v2.y - v0.y);
-	std::vector<float> line12xs = interpolate(v1.x, v2.x, v2.y - v1.y);
+	std::vector<float> line01xs = interpolate(v0.x, v1.x, std::ceil(v1.y - v0.y));
+	std::vector<float> line02xs = interpolate(v0.x, v2.x, std::ceil(v2.y - v0.y));
+	std::vector<float> line12xs = interpolate(v1.x, v2.x, std::ceil(v2.y - v1.y));
 
 	if (v0.y == v1.y) {
 		fillFlatTriangle(window, v0.y, v2.y, line02xs, line12xs, colour);
