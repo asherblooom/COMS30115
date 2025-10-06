@@ -10,6 +10,18 @@
 #define WIDTH 1920
 #define HEIGHT 1060
 
+CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
+	vertexPosition -= cameraPosition;
+	return {(vertexPosition.x * focalLength) / vertexPosition.z + WIDTH / 2.0f, (vertexPosition.y * focalLength) / vertexPosition.z + HEIGHT / 2.0f};
+}
+
+CanvasTriangle getCanvasIntersectionTriangle(glm::vec3 cameraPosition, ModelTriangle triangle, float focalLength) {
+	CanvasPoint v0 = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[0], focalLength);
+	CanvasPoint v1 = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[1], focalLength);
+	CanvasPoint v2 = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[2], focalLength);
+	return {v0, v1, v2};
+}
+
 void handleEvent(SDL_Event event, DrawingWindow &window) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_u) {
@@ -35,11 +47,15 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	auto triangles = readObjFile("cornell-box.obj", "cornell-box.mtl", 100);
+	auto triangles = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
+	glm::vec3 cameraPosition = {0, 0, 4};
 
 	while (true) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
+		for (auto &tri : triangles) {
+			drawStokedTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 1000), tri.colour);
+		}
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
