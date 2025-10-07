@@ -7,14 +7,15 @@
 #include "Draw.hpp"
 #include "ObjReader.hpp"
 
-#define WIDTH 1920
-#define HEIGHT 1060
-
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
-	vertexPosition.x *= -500;
-	vertexPosition.y *= 500;
-	vertexPosition -= cameraPosition;
-	return {(vertexPosition.x * focalLength) / vertexPosition.z + WIDTH / 2.0f, (vertexPosition.y * focalLength) / vertexPosition.z + HEIGHT / 2.0f};
+	vertexPosition.x *= 500;
+	// same reason as below for negative sign
+	vertexPosition.y *= -500;
+	// blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
+	vertexPosition.z *= -1;
+	// move each vertex so that old origin is now camera position
+	vertexPosition += cameraPosition;
+	return {(vertexPosition.x * focalLength) / vertexPosition.z + WIDTH / 2.0f, (vertexPosition.y * focalLength) / vertexPosition.z + HEIGHT / 2.0f, vertexPosition.z};
 }
 
 CanvasTriangle getCanvasIntersectionTriangle(glm::vec3 cameraPosition, ModelTriangle triangle, float focalLength) {
@@ -50,13 +51,18 @@ int main(int argc, char *argv[]) {
 	SDL_Event event;
 
 	auto triangles = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	glm::vec3 cameraPosition = {0, 0, 4};
+	glm::vec3 cameraPosition = {0, 0, 3};
 
 	while (true) {
 		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		for (auto &tri : triangles) {
 			drawFilledTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
+			if (tri.colour.red == 255)
+				std::cout << "red: " << tri.vertices[0].z << "\n";
+			if (tri.colour.blue == 255)
+				std::cout << "blue: " << tri.vertices[0].z << "\n";
+			// drawStokedTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
 		}
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !

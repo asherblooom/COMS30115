@@ -7,6 +7,9 @@
 #include <DrawingWindow.h>
 #include <TextureMap.h>
 
+#define WIDTH 1920
+#define HEIGHT 1060
+
 void draw(DrawingWindow &window, float x, float y, Colour &colour);
 
 void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour = {255, 255, 255});

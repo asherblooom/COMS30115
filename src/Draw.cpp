@@ -6,6 +6,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+std::vector<float> DEPTHBUFFER((WIDTH * HEIGHT), 0);
+
 template <typename T>
 std::vector<T> interpolate(T from, T to, int numberOfValues) {
 	if (numberOfValues <= 1)
@@ -81,23 +83,36 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	drawLine(window, triangle.v1(), triangle.v2(), colour);
 }
 
-void fillFlatTriangle(DrawingWindow &window, int yStart, int yEnd, std::vector<float> &xs1, std::vector<float> &xs2, Colour &colour) {
+void fillFlatTriangle(DrawingWindow &window, int yStart, int yEnd, std::vector<float> &xs1, std::vector<float> &xs2, std::vector<float> &zs1, std::vector<float> zs2, Colour &colour) {
 	// these are pointers to avoid copying
 	std::vector<float> *leftXs;
 	std::vector<float> *rightXs;
+	std::vector<float> *leftZs;
+	std::vector<float> *rightZs;
 	// for triangle to be valid, the lines (the xs) cannot intersect other than at positions 0 and size - 1
 	// so to check which side each is on, we take the min halfway point and use that
+	// this also assumes the zs and xs match up
 	float minHalfway = std::min(xs1.size() / 2, xs2.size() / 2);
 	if (xs1.at(minHalfway) <= xs2.at(minHalfway)) {
 		leftXs = &xs1;
 		rightXs = &xs2;
+		leftZs = &zs1;
+		rightZs = &zs2;
 	} else {
 		leftXs = &xs2;
 		rightXs = &xs1;
+		leftZs = &zs2;
+		rightZs = &zs1;
 	}
-	for (int y = yStart; y < yEnd; y++) {
-		for (float x = leftXs->at(y - yStart); x <= rightXs->at(y - yStart); x++) {
-			draw(window, x, y, colour);
+	for (int y = 0; y <= yEnd - yStart; y++) {
+		int xStart = (int)leftXs->at(y);
+		int xEnd = (int)rightXs->at(y);
+		std::vector<float> horizontalZs = interpolate(leftZs->at(y), rightZs->at(y), xEnd - xStart + 1);
+		for (float x = 0; x <= xEnd - xStart; x++) {
+			if (DEPTHBUFFER[WIDTH * (y + yStart) + (x + xStart)] < 1 / horizontalZs.at(x)) {
+				draw(window, x + xStart, y + yStart, colour);
+				DEPTHBUFFER[WIDTH * (y + yStart) + (x + xStart)] = 1 / horizontalZs.at(x);
+			}
 		}
 	}
 }
@@ -108,20 +123,25 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
 	CanvasPoint &v2 = triangle.vertices.at(2);	// vertex with highest y value
 	// interpolate to make vectors of all x-coords in each line
-	std::vector<float> line01xs = interpolate(v0.x, v1.x, std::ceil(v1.y - v0.y));
-	std::vector<float> line02xs = interpolate(v0.x, v2.x, std::ceil(v2.y - v0.y));
-	std::vector<float> line12xs = interpolate(v1.x, v2.x, std::ceil(v2.y - v1.y));
+	std::vector<float> line01xs = interpolate(v0.x, v1.x, std::ceil(v1.y - v0.y) + 1);
+	std::vector<float> line02xs = interpolate(v0.x, v2.x, std::ceil(v2.y - v0.y) + 1);
+	std::vector<float> line12xs = interpolate(v1.x, v2.x, std::ceil(v2.y - v1.y) + 1);
+
+	std::vector<float> line01zs = interpolate(v0.depth, v1.depth, std::ceil(v1.y - v0.y) + 1);
+	std::vector<float> line02zs = interpolate(v0.depth, v2.depth, std::ceil(v2.y - v0.y) + 1);
+	std::vector<float> line12zs = interpolate(v1.depth, v2.depth, std::ceil(v2.y - v1.y) + 1);
 
 	if (v0.y == v1.y) {
-		fillFlatTriangle(window, v0.y, v2.y, line02xs, line12xs, colour);
+		fillFlatTriangle(window, v0.y, v2.y, line02xs, line12xs, line02zs, line12zs, colour);
 	} else if (v1.y == v2.y) {
-		fillFlatTriangle(window, v0.y, v2.y, line01xs, line02xs, colour);
+		fillFlatTriangle(window, v0.y, v2.y, line01xs, line02xs, line01zs, line02zs, colour);
 	} else {
 		// need to fill triangle in 2 goes
 		// the first x value we want to use must be at position 0, so we have to shorten front of vector for bottom part of line
 		std::vector<float> bottomLine02xs{line02xs.begin() + (v1.y - v0.y), line02xs.end()};
-		fillFlatTriangle(window, v0.y, v1.y, line01xs, line02xs, colour);
-		fillFlatTriangle(window, v1.y, v2.y, line12xs, bottomLine02xs, colour);
+		std::vector<float> bottomLine02zs{line02zs.begin() + (v1.y - v0.y), line02zs.end()};
+		fillFlatTriangle(window, v0.y, v1.y, line01xs, line02xs, line01zs, line02zs, colour);
+		fillFlatTriangle(window, v1.y, v2.y, line12xs, bottomLine02xs, line12zs, bottomLine02zs, colour);
 	}
 }
 
@@ -152,11 +172,11 @@ void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int
 		rightTexLine = &texLine1;
 	}
 
-	for (int y = 0; y < yEnd - yStart; y++) {
+	for (int y = 0; y <= yEnd - yStart; y++) {
 		int xStart = (int)leftXs->at(y);
 		int xEnd = (int)rightXs->at(y);
-		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y), rightTexLine->at(y), xEnd - xStart);
-		for (int x = 0; x < xEnd - xStart; x++) {
+		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y), rightTexLine->at(y), xEnd - xStart + 1);
+		for (int x = 0; x <= xEnd - xStart; x++) {
 			glm::vec2 texPos = texLine.at(x);
 			uint32_t colour = tex.pixels.at((int)texPos.y * tex.width + (int)texPos.x);
 			window.setPixelColour(x + xStart, y + yStart, colour);
@@ -179,13 +199,13 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Textur
 	}
 
 	// interpolate to make vectors of all x-coords in each line
-	std::vector<float> line01xs = interpolate(v0.x, v1.x, v1.y - v0.y);
-	std::vector<float> line02xs = interpolate(v0.x, v2.x, v2.y - v0.y);
-	std::vector<float> line12xs = interpolate(v1.x, v2.x, v2.y - v1.y);
+	std::vector<float> line01xs = interpolate(v0.x, v1.x, std::ceil(v1.y - v0.y) + 1);
+	std::vector<float> line02xs = interpolate(v0.x, v2.x, std::ceil(v2.y - v0.y) + 1);
+	std::vector<float> line12xs = interpolate(v1.x, v2.x, std::ceil(v2.y - v1.y) + 1);
 
-	std::vector<glm::vec2> texLine01 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t1.x, t1.y}, v1.y - v0.y);
-	std::vector<glm::vec2> texLine02 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t2.x, t2.y}, v2.y - v0.y);
-	std::vector<glm::vec2> texLine12 = interpolate(glm::vec2{t1.x, t1.y}, glm::vec2{t2.x, t2.y}, v2.y - v1.y);
+	std::vector<glm::vec2> texLine01 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t1.x, t1.y}, std::ceil(v1.y - v0.y) + 1);
+	std::vector<glm::vec2> texLine02 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t2.x, t2.y}, std::ceil(v2.y - v0.y) + 1);
+	std::vector<glm::vec2> texLine12 = interpolate(glm::vec2{t1.x, t1.y}, glm::vec2{t2.x, t2.y}, std::ceil(v2.y - v1.y) + 1);
 
 	if (v0.y == v1.y) {
 		textureFlatTriangle(window, texture, v0.y, v2.y, line02xs, line12xs, texLine02, texLine12);
