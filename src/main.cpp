@@ -33,12 +33,6 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 									{float(std::rand() % window.width), float(std::rand() % window.height)},
 									{float(std::rand() % window.width), float(std::rand() % window.height)}};
 			drawStokedTriangle(window, triangle, colour);
-		} else if (event.key.keysym.sym == SDLK_f) {
-			Colour colour{std::rand() % 256, std::rand() % 256, std::rand() % 256};
-			CanvasTriangle triangle{{float(std::rand() % window.width), float(std::rand() % window.height)},
-									{float(std::rand() % window.width), float(std::rand() % window.height)},
-									{float(std::rand() % window.width), float(std::rand() % window.height)}};
-			drawFilledTriangle(window, triangle, colour);
 		}
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -54,17 +48,15 @@ int main(int argc, char *argv[]) {
 	glm::vec3 cameraPosition = {0, 0, 3};
 
 	while (true) {
-		// window.clearPixels();
+		window.clearPixels();
+		// reset depth buffer
+		std::vector<float> depthBuffer((WIDTH * HEIGHT), 0);
 		// We MUST poll for events - otherwise the window will freeze !
+		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		for (auto &tri : triangles) {
-			drawFilledTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
-			if (tri.colour.red == 255)
-				std::cout << "red: " << tri.vertices[0].z << "\n";
-			if (tri.colour.blue == 255)
-				std::cout << "blue: " << tri.vertices[0].z << "\n";
+			drawFilledTriangle(window, depthBuffer, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
 			// drawStokedTriangle(window, getCanvasIntersectionTriangle(cameraPosition, tri, 2), tri.colour);
 		}
-		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}

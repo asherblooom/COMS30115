@@ -6,8 +6,6 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-std::vector<float> DEPTHBUFFER((WIDTH * HEIGHT), 0);
-
 template <typename T>
 std::vector<T> interpolate(T from, T to, int numberOfValues) {
 	if (numberOfValues <= 1)
@@ -83,7 +81,11 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	drawLine(window, triangle.v1(), triangle.v2(), colour);
 }
 
-void fillFlatTriangle(DrawingWindow &window, int yStart, int yEnd, std::vector<float> &xs1, std::vector<float> &xs2, std::vector<float> &zs1, std::vector<float> zs2, Colour &colour) {
+void fillFlatTriangle(DrawingWindow &window, std::vector<float> &depthBuffer,
+					  int yStart, int yEnd,
+					  std::vector<float> &xs1, std::vector<float> &xs2,
+					  std::vector<float> &zs1, std::vector<float> zs2,
+					  Colour &colour) {
 	// these are pointers to avoid copying
 	std::vector<float> *leftXs;
 	std::vector<float> *rightXs;
@@ -109,15 +111,15 @@ void fillFlatTriangle(DrawingWindow &window, int yStart, int yEnd, std::vector<f
 		int xEnd = (int)rightXs->at(y);
 		std::vector<float> horizontalZs = interpolate(leftZs->at(y), rightZs->at(y), xEnd - xStart + 1);
 		for (float x = 0; x <= xEnd - xStart; x++) {
-			if (DEPTHBUFFER[WIDTH * (y + yStart) + (x + xStart)] < 1 / horizontalZs.at(x)) {
+			if (depthBuffer[WIDTH * (y + yStart) + (x + xStart)] < 1 / horizontalZs.at(x)) {
 				draw(window, x + xStart, y + yStart, colour);
-				DEPTHBUFFER[WIDTH * (y + yStart) + (x + xStart)] = 1 / horizontalZs.at(x);
+				depthBuffer[WIDTH * (y + yStart) + (x + xStart)] = 1 / horizontalZs.at(x);
 			}
 		}
 	}
 }
 
-void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
+void drawFilledTriangle(DrawingWindow &window, std::vector<float> &depthBuffer, CanvasTriangle triangle, Colour colour) {
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
 	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
@@ -132,16 +134,16 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	std::vector<float> line12zs = interpolate(v1.depth, v2.depth, std::ceil(v2.y - v1.y) + 1);
 
 	if (v0.y == v1.y) {
-		fillFlatTriangle(window, v0.y, v2.y, line02xs, line12xs, line02zs, line12zs, colour);
+		fillFlatTriangle(window, depthBuffer, v0.y, v2.y, line02xs, line12xs, line02zs, line12zs, colour);
 	} else if (v1.y == v2.y) {
-		fillFlatTriangle(window, v0.y, v2.y, line01xs, line02xs, line01zs, line02zs, colour);
+		fillFlatTriangle(window, depthBuffer, v0.y, v2.y, line01xs, line02xs, line01zs, line02zs, colour);
 	} else {
 		// need to fill triangle in 2 goes
 		// the first x value we want to use must be at position 0, so we have to shorten front of vector for bottom part of line
 		std::vector<float> bottomLine02xs{line02xs.begin() + (v1.y - v0.y), line02xs.end()};
 		std::vector<float> bottomLine02zs{line02zs.begin() + (v1.y - v0.y), line02zs.end()};
-		fillFlatTriangle(window, v0.y, v1.y, line01xs, line02xs, line01zs, line02zs, colour);
-		fillFlatTriangle(window, v1.y, v2.y, line12xs, bottomLine02xs, line12zs, bottomLine02zs, colour);
+		fillFlatTriangle(window, depthBuffer, v0.y, v1.y, line01xs, line02xs, line01zs, line02zs, colour);
+		fillFlatTriangle(window, depthBuffer, v1.y, v2.y, line12xs, bottomLine02xs, line12zs, bottomLine02zs, colour);
 	}
 }
 

@@ -18,7 +18,7 @@ void drawBaryTriangle(DrawingWindow &window, CanvasTriangle triangle);
 
 void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255});
 
-void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour = {255, 255, 255});
+void drawFilledTriangle(DrawingWindow &window, std::vector<float> &depthBuffer, CanvasTriangle triangle, Colour colour = {255, 255, 255});
 
 void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap texture);
 
