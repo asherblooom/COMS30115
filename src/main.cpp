@@ -8,6 +8,7 @@
 #include "Draw.hpp"
 #include "ObjReader.hpp"
 #include "Transform.hpp"
+#include "glm/gtc/quaternion.hpp"
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cameraRotation, glm::mat4 &modelRotation, glm::vec3 &vertexPosition, float focalLength) {
 	glm::vec4 vertexPos{vertexPosition, 1};
@@ -17,10 +18,11 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cam
 	vertexPos = cameraRotation * vertexPos;
 
 	vertexPos += cameraPosition;
-	// vertexPos.x *= 500;
-	// // same reason as below for negative sign
-	// vertexPos.y *= -500;
-	// // blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
+	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
+	vertexPos.x *= 100;
+	// same reason as below for negative sign
+	vertexPos.y *= -100;
+	// blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
 	vertexPos -= cameraPosition;
 	vertexPos.z *= -1;
 	return {(vertexPos.x * focalLength) / vertexPos.z + WIDTH / 2.0f, (vertexPos.y * focalLength) / vertexPos.z + HEIGHT / 2.0f, vertexPos.z};
@@ -36,13 +38,13 @@ CanvasTriangle getCanvasIntersectionTriangle(glm::vec4 &cameraPosition, glm::mat
 void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT)
-			camVec = Translate(-10, 0, 0) * camVec;
-		if (event.key.keysym.sym == SDLK_RIGHT)
 			camVec = Translate(10, 0, 0) * camVec;
+		if (event.key.keysym.sym == SDLK_RIGHT)
+			camVec = Translate(-10, 0, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_UP)
-			camVec = Translate(0, -10, 0) * camVec;
-		if (event.key.keysym.sym == SDLK_DOWN)
 			camVec = Translate(0, 10, 0) * camVec;
+		if (event.key.keysym.sym == SDLK_DOWN)
+			camVec = Translate(0, -10, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_f)
 			camVec = Translate(0, 0, -2) * camVec;
 		if (event.key.keysym.sym == SDLK_b)
@@ -61,13 +63,13 @@ void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm:
 		if (event.key.keysym.sym == SDLK_p)
 			camRot = Rotate(0, 0, -2) * camRot;
 		// mod rot
-		if (event.key.keysym.sym == SDLK_j)
-			modRot = Rotate(0, -2, 0) * modRot;
-		if (event.key.keysym.sym == SDLK_k)
-			modRot = Rotate(0, 2, 0) * modRot;
-		if (event.key.keysym.sym == SDLK_h)
-			modRot = Rotate(2, 0, 0) * modRot;
 		if (event.key.keysym.sym == SDLK_l)
+			modRot = Rotate(0, -2, 0) * modRot;
+		if (event.key.keysym.sym == SDLK_h)
+			modRot = Rotate(0, 2, 0) * modRot;
+		if (event.key.keysym.sym == SDLK_k)
+			modRot = Rotate(2, 0, 0) * modRot;
+		if (event.key.keysym.sym == SDLK_j)
 			modRot = Rotate(-2, 0, 0) * modRot;
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -77,14 +79,48 @@ void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm:
 
 void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
 	// reset depth buffer
-	std::vector<float> depthBuffer((WIDTH * HEIGHT), 0);
-	for (auto &tri : triangles) {
-		CanvasTriangle canvasTri = getCanvasIntersectionTriangle(camVec, camRot, modRot, tri, 2);
-		drawFilledTriangle(window, depthBuffer, canvasTri, tri.colour);
+	std::vector<float> depthBuffer((window.width * window.height), 0);
+	for (ModelTriangle &triangle : triangles) {
+		CanvasTriangle canvasTri = getCanvasIntersectionTriangle(camVec, camRot, modRot, triangle, 2);
+		drawFilledTriangle(window, depthBuffer, canvasTri, triangle.colour);
 	}
 }
 
-void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {}
+void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec3 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
+	for (int h = 0; h < window.height; h++) {
+		for (int w = 0; w < window.width; w++) {
+			glm::vec3 camDir = glm::vec3{w - window.width / 2.0f, h - window.height / 2.0f, 0} - camVec;
+			float tSmallest = MAXFLOAT;
+			Colour tSmallestColour{0, 0, 0};
+
+			for (ModelTriangle &triangle : triangles) {
+				// scale verticies
+				glm::vec3 v0 = triangle.vertices[0] * glm::vec3{100, -100, 1};
+				glm::vec3 v1 = triangle.vertices[1] * glm::vec3{100, -100, 1};
+				glm::vec3 v2 = triangle.vertices[2] * glm::vec3{100, -100, 1};
+
+				glm::vec3 e0 = v1 - v0;
+				glm::vec3 e1 = v2 - v0;
+				glm::vec3 tuv = glm::inverse(glm::mat3(-camDir, e0, e1)) * (camVec - v0);
+				float t = tuv.x;
+				float u = tuv.y;
+				float v = tuv.z;
+				if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
+					// we hit this triangle
+					if (t < tSmallest) {
+						tSmallest = t;
+						tSmallestColour = triangle.colour;
+					}
+				}
+			}
+			if (tSmallest == MAXFLOAT) {
+				// no hit found, maybe want to do something here?
+				// but tSmallestColour is already default set to black so no need to do anything
+			}
+			draw(window, w, h, tSmallestColour);
+		}
+	}
+}
 
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -95,11 +131,13 @@ int main(int argc, char *argv[]) {
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
 
+	glm::vec3 camVeccy{camVec.x, camVec.y, camVec.z};
+	raytrace(window, triangles, camVeccy, camRot, modRot);
 	while (true) {
-		window.clearPixels();
+		// window.clearPixels();
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, camVec, camRot, modRot);
-		rasterise(window, triangles, camVec, camRot, modRot);
+		// rasterise(window, triangles, camVec, camRot, modRot);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}

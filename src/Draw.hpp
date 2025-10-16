@@ -7,8 +7,8 @@
 #include <DrawingWindow.h>
 #include <TextureMap.h>
 
-#define WIDTH 1920
-#define HEIGHT 1060
+#define WIDTH 600
+#define HEIGHT 400
 
 void draw(DrawingWindow &window, float x, float y, Colour &colour);
 
