@@ -19,6 +19,7 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cam
 
 	vertexPos += cameraPosition;
 	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
+	// also about boxes going through floor - is it ok??
 	vertexPos.x *= 100;
 	// same reason as below for negative sign
 	vertexPos.y *= -100;
@@ -86,11 +87,42 @@ void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm
 	}
 }
 
+bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 trianglePos) {
+	glm::vec3 shadowRayDir = lightPos - trianglePos;
+	float distToLight = glm::length(shadowRayDir);
+
+	bool needShadow = false;
+
+	for (ModelTriangle &triangle : triangles) {
+		// scale verticies
+		glm::vec3 v0 = triangle.vertices[0] * glm::vec3{100, -100, 1};
+		glm::vec3 v1 = triangle.vertices[1] * glm::vec3{100, -100, 1};
+		glm::vec3 v2 = triangle.vertices[2] * glm::vec3{100, -100, 1};
+
+		glm::vec3 e0 = v1 - v0;
+		glm::vec3 e1 = v2 - v0;
+		glm::vec3 tuv = glm::inverse(glm::mat3(-shadowRayDir, e0, e1)) * (trianglePos - v0);
+		float t = tuv.x;
+		float u = tuv.y;
+		float v = tuv.z;
+		if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
+			// we hit this triangle
+			// t > 0.00001 prevents shadow achne
+			if (t < distToLight && t > 0.00001) {
+				needShadow = true;
+				break;
+			}
+		}
+	}
+	return needShadow;
+}
+
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec3 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
 	for (int h = 0; h < window.height; h++) {
 		for (int w = 0; w < window.width; w++) {
 			glm::vec3 camDir = glm::vec3{w - window.width / 2.0f, h - window.height / 2.0f, 0} - camVec;
 			float tSmallest = MAXFLOAT;
+			glm::vec3 tSmallestTrianglePos;
 			Colour tSmallestColour{0, 0, 0};
 
 			for (ModelTriangle &triangle : triangles) {
@@ -109,13 +141,17 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 					// we hit this triangle
 					if (t < tSmallest) {
 						tSmallest = t;
+						tSmallestTrianglePos = v0 + e0 * u + e1 * v;
 						tSmallestColour = triangle.colour;
 					}
 				}
 			}
-			if (tSmallest == MAXFLOAT) {
-				// no hit found, maybe want to do something here?
-				// but tSmallestColour is already default set to black so no need to do anything
+			if (tSmallest < MAXFLOAT) {
+				// we found a hit in the above loop
+				glm::vec3 lightPos = {0, -80, 1};
+				if (calculateShadows(triangles, lightPos, tSmallestTrianglePos)) {
+					tSmallestColour = {0, 0, 0};
+				}
 			}
 			draw(window, w, h, tSmallestColour);
 		}
