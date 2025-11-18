@@ -90,6 +90,9 @@ void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm
 bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 trianglePos) {
 	glm::vec3 shadowRayDir = lightPos - trianglePos;
 	float distToLight = glm::length(shadowRayDir);
+	// we normalise after calculating distToLight so that distToLight is actual distance,
+	// but also so that t == distToLight (as the vector which t scales - shadowRayDir - has length 1 after normalisation)
+	shadowRayDir = glm::normalize(shadowRayDir);
 
 	bool needShadow = false;
 
@@ -105,10 +108,10 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 		float t = tuv.x;
 		float u = tuv.y;
 		float v = tuv.z;
-		if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
-			// we hit this triangle
-			// t > 0.00001 prevents shadow achne
-			if (t < distToLight && t > 0.00001) {
+		// t > 0.00001 prevents shadow achne
+		if (t >= 0.001 && u > 0 && v > 0 && u + v < 1) {
+			// we hit a triangle
+			if (t < distToLight) {
 				needShadow = true;
 				break;
 			}
@@ -119,10 +122,8 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec3 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
 	// -------Light Data--------
-	glm::vec3 lightPos = {0, -80, 1};
-	float strength = 10;
-	float sphereRadius = 10000;
-	float intensityAtSphere = strength / (4 * M_PI * sphereRadius);
+	glm::vec3 lightPos = {0, -70, 0};
+	float strength = 700;
 
 	for (int h = 0; h < window.height; h++) {
 		for (int w = 0; w < window.width; w++) {
@@ -158,8 +159,18 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 					tSmallestColour = {0, 0, 0};
 				} else {
 					// calculate light intensity
+					// here we increase the z components of the vectors that make up the distance
+					// as we want the distance in all directions (x,y,z) to have the same value for the same actual distance
+					// (before increasing z, x and y vary from -100 to 100, but z only varies from -1 to 1.
+					// This produces the correct visual look, but does not work when trying to calculate distances,
+					// as although z looks on the same scale as x and y in the image, it actually isn't...)
+					lightPos.z *= 100;
+					tSmallestTrianglePos.z *= 100;
 					float distance = glm::length(tSmallestTrianglePos - lightPos);
-					float intensityAtTri = intensityAtSphere / std::pow(distance / sphereRadius, 2);
+					lightPos.z /= 100;
+					tSmallestTrianglePos.z /= 100;
+
+					float intensityAtTri = strength / (4 * M_PI * distance);
 					float intensityCapped = intensityAtTri < 1 ? intensityAtTri : 1;
 					tSmallestColour.red *= intensityCapped;
 					tSmallestColour.blue *= intensityCapped;
