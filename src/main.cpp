@@ -118,6 +118,12 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 }
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec3 &camVec, glm::mat4 &camRot, glm::mat4 &modRot) {
+	// -------Light Data--------
+	glm::vec3 lightPos = {0, -80, 1};
+	float strength = 10;
+	float sphereRadius = 10000;
+	float intensityAtSphere = strength / (4 * M_PI * sphereRadius);
+
 	for (int h = 0; h < window.height; h++) {
 		for (int w = 0; w < window.width; w++) {
 			glm::vec3 camDir = glm::vec3{w - window.width / 2.0f, h - window.height / 2.0f, 0} - camVec;
@@ -148,9 +154,16 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			}
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
-				glm::vec3 lightPos = {0, -80, 1};
 				if (calculateShadows(triangles, lightPos, tSmallestTrianglePos)) {
 					tSmallestColour = {0, 0, 0};
+				} else {
+					// calculate light intensity
+					float distance = glm::length(tSmallestTrianglePos - lightPos);
+					float intensityAtTri = intensityAtSphere / std::pow(distance / sphereRadius, 2);
+					float intensityCapped = intensityAtTri < 1 ? intensityAtTri : 1;
+					tSmallestColour.red *= intensityCapped;
+					tSmallestColour.blue *= intensityCapped;
+					tSmallestColour.green *= intensityCapped;
 				}
 			}
 			draw(window, w, h, tSmallestColour);
