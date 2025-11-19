@@ -36,8 +36,6 @@ std::vector<ModelTriangle> readObjFile(std::string objFile, std::string mtlFile,
 	std::vector<ModelTriangle> triangles;
 	std::vector<glm::vec3> tempVertices;
 	Colour currColour;
-	// std::vector<glm::vec2> tempUvs;
-	// std::vector<glm::vec3> tempNormals;
 
 	std::ifstream inputStream(objFile, std::ios::in);
 	if (!inputStream) std::cerr << "ERROR: '" << objFile << "' not found\n";
