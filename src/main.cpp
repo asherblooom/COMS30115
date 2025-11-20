@@ -17,14 +17,12 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cam
 	vertexPos -= cameraPosition;
 	vertexPos = cameraRotation * vertexPos;
 
-	vertexPos += cameraPosition;
 	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
 	// also about boxes going through floor - is it ok??
 	vertexPos.x *= 100;
 	// same reason as below for negative sign
 	vertexPos.y *= -100;
 	// blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
-	vertexPos -= cameraPosition;
 	vertexPos.z *= -1;
 	return {(vertexPos.x * focalLength) / vertexPos.z + WIDTH / 2.0f, (vertexPos.y * focalLength) / vertexPos.z + HEIGHT / 2.0f, vertexPos.z};
 }
@@ -39,17 +37,17 @@ CanvasTriangle getCanvasIntersectionTriangle(glm::vec4 &cameraPosition, glm::mat
 void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, bool &rasterising, bool &raytracedOnce) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT)
-			camVec = Translate(10, 0, 0) * camVec;
+			camVec = Translate(0.25, 0, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_RIGHT)
-			camVec = Translate(-10, 0, 0) * camVec;
+			camVec = Translate(-0.25, 0, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_UP)
-			camVec = Translate(0, 10, 0) * camVec;
+			camVec = Translate(0, -0.25, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_DOWN)
-			camVec = Translate(0, -10, 0) * camVec;
+			camVec = Translate(0, 0.25, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_f)
-			camVec = Translate(0, 0, -2) * camVec;
+			camVec = Translate(0, 0, -1) * camVec;
 		if (event.key.keysym.sym == SDLK_b)
-			camVec = Translate(0, 0, 2) * camVec;
+			camVec = Translate(0, 0, 1) * camVec;
 		// cam rot
 		if (event.key.keysym.sym == SDLK_w)
 			camRot = Rotate(2, 0, 0) * camRot;
@@ -136,10 +134,24 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 
 	// Transform Light Position
 	glm::vec4 lightPos4{lightPos, 1};
-	lightPos4 = camRot * lightPos4;
-	lightPos4 -= camVec;
 	lightPos4 = modRot * lightPos4;
+	lightPos4 -= camVec;
+	lightPos4 = camRot * lightPos4;
 	lightPos = {lightPos4.x, lightPos4.y, lightPos4.z};
+
+	// transform triangle vertices
+	// note: copying here instead of using reference as we do not want to transform the actual triangles that are passed into this function
+	std::vector<ModelTriangle> transformedTriangles;
+	for (ModelTriangle triangle : triangles) {
+		for (glm::vec3 &vertex : triangle.vertices) {
+			glm::vec4 vertex4{vertex, 1};
+			vertex4 = modRot * vertex4;
+			vertex4 -= camVec;
+			vertex4 = camRot * vertex4;
+			vertex = {vertex4.x, vertex4.y, vertex4.z};
+		}
+		transformedTriangles.push_back(triangle);
+	}
 
 	glm::vec3 camVeccy = {camVec.x, camVec.y, camVec.z};
 
@@ -155,16 +167,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			Colour tSmallestColour{0, 0, 0};
 			glm::vec3 tSmallestNormal{0, 0, 0};
 
-			for (ModelTriangle triangle : triangles) {
-				// transform triangle vertices
-				// TODO: camrot is broken!! rest are okay???? also why is z slightly different between rasterise and raytrace??
-				for (glm::vec3 &vertex : triangle.vertices) {
-					glm::vec4 vertexPos{vertex, 1};
-					vertexPos = camRot * vertexPos;
-					vertexPos -= camVec;
-					vertexPos = modRot * vertexPos;
-					vertex = {vertexPos.x, vertexPos.y, vertexPos.z};
-				}
+			for (ModelTriangle &triangle : transformedTriangles) {
 				glm::vec3 &v0 = triangle.vertices[0];
 				glm::vec3 &v1 = triangle.vertices[1];
 				glm::vec3 &v2 = triangle.vertices[2];
@@ -187,26 +190,19 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			}
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
-				// if (calculateShadows(triangles, lightPos, tSmallestTrianglePos)) {
-				// 	tSmallestColour = {0, 0, 0};
-				// } else {
-				// calculate light intensity
-				// here we increase the z components of the vectors that make up the distance
-				// as we want the distance in all directions (x,y,z) to have the same value for the same actual distance
-				// (before increasing z, x and y vary from -100 to 100, but z only varies from -1 to 1.
-				// This produces the correct visual look, but does not work when trying to calculate distances,
-				// as although z looks on the same scale as x and y in the image, it actually isn't...)
-				float distance = glm::length(lightPos - tSmallestTrianglePos);
-				glm::vec3 direction = glm::normalize(lightPos - tSmallestTrianglePos);
+				if (calculateShadows(transformedTriangles, lightPos, tSmallestTrianglePos)) {
+					tSmallestColour = {0, 0, 0};
+				} else {
+					// calculate light intensity
+					float distance = glm::length(lightPos - tSmallestTrianglePos);
+					glm::vec3 direction = glm::normalize(lightPos - tSmallestTrianglePos);
 
-				// TODO: here the dot product is always <= 0?????
-				float intensityAtTri = strength * std::max(glm::dot(direction, tSmallestNormal), 0.0f) / (4 * M_PI * distance);
-				// float intensityAtTri = strength / (4 * M_PI * distance);
-				float intensityCapped = intensityAtTri < 1 ? intensityAtTri : 1;
-				tSmallestColour.red *= intensityCapped;
-				tSmallestColour.blue *= intensityCapped;
-				tSmallestColour.green *= intensityCapped;
-				// }
+					float intensityAtTri = strength * std::max(glm::dot(direction, tSmallestNormal), 0.0f) / (4 * M_PI * distance);
+					float intensityCapped = intensityAtTri < 1 ? intensityAtTri : 1;
+					tSmallestColour.red *= intensityCapped;
+					tSmallestColour.blue *= intensityCapped;
+					tSmallestColour.green *= intensityCapped;
+				}
 			}
 			draw(window, w, h, tSmallestColour);
 		}
@@ -214,7 +210,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = true;
+	bool rasterising = false;
 	bool raytracedOnce = false;
 	float focalLength = 3;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -225,8 +221,7 @@ int main(int argc, char *argv[]) {
 		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
 	}
 
-	// FIXME: look here!!! only needs 1.5 to move!!
-	glm::vec4 camVec = Translate(1.5, 0, 3) * glm::vec4(0, 0, 0, 1);
+	glm::vec4 camVec = Translate(0, 0, 2) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
 
