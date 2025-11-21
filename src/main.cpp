@@ -5,6 +5,7 @@
 #include <Utils.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <ios>
 #include "Draw.hpp"
 #include "ObjReader.hpp"
 #include "Transform.hpp"
@@ -129,7 +130,7 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
-	glm::vec3 lightPos = {0, 0.5, 0.8};
+	glm::vec3 lightPos = {0, 0.6, 0};
 	float strength = 10;
 
 	// Transform Light Position
@@ -160,7 +161,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			// (de)scale by 100
 			float worldX = (w - window.width / 2.0f) / 100;
 			float worldY = -(h - window.height / 2.0f) / 100;
-			glm::vec3 camDir = glm::vec3{worldX, worldY, -focalLength} - camVeccy;
+			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - camVeccy);
 
 			float tSmallest = MAXFLOAT;
 			glm::vec3 tSmallestTrianglePos;
@@ -174,7 +175,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 
 				glm::vec3 e0 = v1 - v0;
 				glm::vec3 e1 = v2 - v0;
-				glm::vec3 tuv = glm::inverse(glm::mat3(-camDir, e0, e1)) * (camVeccy - v0);
+				glm::vec3 tuv = glm::inverse(glm::mat3(-rayDir, e0, e1)) * (camVeccy - v0);
 				float t = tuv.x;
 				float u = tuv.y;
 				float v = tuv.z;
@@ -190,19 +191,39 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			}
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
-				if (calculateShadows(transformedTriangles, lightPos, tSmallestTrianglePos)) {
-					tSmallestColour = {0, 0, 0};
-				} else {
-					// calculate light intensity
-					float distance = glm::length(lightPos - tSmallestTrianglePos);
-					glm::vec3 direction = glm::normalize(lightPos - tSmallestTrianglePos);
+				// light the hit pixel
+				float diffuse = 0;
+				float ambient = 0.5;
+				float specular = 0;
 
-					float intensityAtTri = strength * std::max(glm::dot(direction, tSmallestNormal), 0.0f) / (4 * M_PI * distance);
-					float intensityCapped = intensityAtTri < 1 ? intensityAtTri : 1;
-					tSmallestColour.red *= intensityCapped;
-					tSmallestColour.blue *= intensityCapped;
-					tSmallestColour.green *= intensityCapped;
+				float distanceTriToLight = glm::length(lightPos - tSmallestTrianglePos);
+				glm::vec3 directionTriToLight = glm::normalize(lightPos - tSmallestTrianglePos);
+
+				if (!calculateShadows(transformedTriangles, lightPos, tSmallestTrianglePos)) {
+					// Calculate direct (diffuse) lighting
+					float dotProd = std::max(glm::dot(directionTriToLight, tSmallestNormal), 0.0f);
+					diffuse = (strength * dotProd) / (4 * M_PI * distanceTriToLight);
+
+					// Calculate specular intensity
+					glm::vec3 reflection = directionTriToLight - 2.0f * tSmallestNormal * glm::dot(directionTriToLight, tSmallestNormal);
+					float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
+					specular = std::pow(specAngle, 256);
 				}
+
+				// Add diffuse and ambient lighting
+				tSmallestColour.red *= diffuse + ambient;
+				tSmallestColour.green *= diffuse + ambient;
+				tSmallestColour.blue *= diffuse + ambient;
+
+				// Add specular, assumes the light source is white (255, 255, 255)
+				tSmallestColour.red += (255.0f * specular);
+				tSmallestColour.green += (255.0f * specular);
+				tSmallestColour.blue += (255.0f * specular);
+
+				// Cap colour at (255, 255, 255)
+				tSmallestColour.red = std::min(tSmallestColour.red, 255);
+				tSmallestColour.green = std::min(tSmallestColour.green, 255);
+				tSmallestColour.blue = std::min(tSmallestColour.blue, 255);
 			}
 			draw(window, w, h, tSmallestColour);
 		}
@@ -216,6 +237,7 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
+	// load cornell box model and calculate normals
 	std::vector<ModelTriangle> triangles = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
 	for (auto &triangle : triangles) {
 		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
