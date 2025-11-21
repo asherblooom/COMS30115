@@ -5,11 +5,9 @@
 #include <Utils.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <ios>
 #include "Draw.hpp"
 #include "ObjReader.hpp"
 #include "Transform.hpp"
-#include "glm/detail/type_mat.hpp"
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cameraRotation, glm::mat4 &modelRotation, glm::vec3 &vertexPosition, float focalLength) {
 	glm::vec4 vertexPos{vertexPosition, 1};
