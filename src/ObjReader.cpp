@@ -31,11 +31,14 @@ std::map<std::string, Colour> readMtlFile(std::string filename) {
 }
 
 std::vector<ModelTriangle> readObjFile(std::string objFile, std::string mtlFile, float scale) {
-	std::map<std::string, Colour> palette = readMtlFile(mtlFile);
+	std::map<std::string, Colour> palette;
+	if (mtlFile != "")
+		palette = readMtlFile(mtlFile);
 
 	std::vector<ModelTriangle> triangles;
 	std::vector<glm::vec3> tempVertices;
-	Colour currColour;
+	// if no mtlFile is given, default colour is red
+	Colour currColour = {255, 0, 0};
 
 	std::ifstream inputStream(objFile, std::ios::in);
 	if (!inputStream) std::cerr << "ERROR: '" << objFile << "' not found\n";
@@ -59,7 +62,7 @@ std::vector<ModelTriangle> readObjFile(std::string objFile, std::string mtlFile,
 			v3 = tempVertices.at(std::stoi(indices3.at(0)) - 1);
 			triangles.emplace_back(v1, v2, v3, currColour);
 		}
-		if (s.at(0) == "usemtl") {
+		if (mtlFile != "" && s.at(0) == "usemtl") {
 			currColour = palette.at(s.at(1));
 		}
 	}

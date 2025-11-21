@@ -46,22 +46,22 @@ void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm:
 		if (event.key.keysym.sym == SDLK_DOWN)
 			camVec = Translate(0, 0.25, 0) * camVec;
 		if (event.key.keysym.sym == SDLK_f)
-			camVec = Translate(0, 0, -1) * camVec;
+			camVec = Translate(0, 0, -0.25) * camVec;
 		if (event.key.keysym.sym == SDLK_b)
-			camVec = Translate(0, 0, 1) * camVec;
+			camVec = Translate(0, 0, 0.25) * camVec;
 		// cam rot
 		if (event.key.keysym.sym == SDLK_w)
-			camRot = Rotate(2, 0, 0) * camRot;
+			camRot = Rotate(1, 0, 0) * camRot;
 		if (event.key.keysym.sym == SDLK_s)
-			camRot = Rotate(-2, 0, 0) * camRot;
+			camRot = Rotate(-1, 0, 0) * camRot;
 		if (event.key.keysym.sym == SDLK_a)
-			camRot = Rotate(0, -2, 0) * camRot;
+			camRot = Rotate(0, -1, 0) * camRot;
 		if (event.key.keysym.sym == SDLK_d)
-			camRot = Rotate(0, 2, 0) * camRot;
+			camRot = Rotate(0, 1, 0) * camRot;
 		if (event.key.keysym.sym == SDLK_o)
-			camRot = Rotate(0, 0, 2) * camRot;
+			camRot = Rotate(0, 0, 1) * camRot;
 		if (event.key.keysym.sym == SDLK_p)
-			camRot = Rotate(0, 0, -2) * camRot;
+			camRot = Rotate(0, 0, -1) * camRot;
 		// mod rot
 		if (event.key.keysym.sym == SDLK_l)
 			modRot = Rotate(0, -2, 0) * modRot;
@@ -130,7 +130,7 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
-	glm::vec3 lightPos = {0, 0.6, 0};
+	glm::vec3 lightPos = {0, 0, 2};
 	float strength = 10;
 
 	// Transform Light Position
@@ -238,10 +238,17 @@ int main(int argc, char *argv[]) {
 	SDL_Event event;
 
 	// load cornell box model and calculate normals
-	std::vector<ModelTriangle> triangles = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	for (auto &triangle : triangles) {
+	std::vector<ModelTriangle> cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
+	for (auto &triangle : cornell) {
 		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
 	}
+	// load sphere model and calculate normals
+	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
+	for (auto &triangle : sphere) {
+		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
+	}
+	// append sphere's triangles to cornell's
+	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
 
 	glm::vec4 camVec = Translate(0, 0, 2) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
@@ -250,10 +257,10 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		if (rasterising) {
 			window.clearPixels();
-			rasterise(window, triangles, camVec, camRot, modRot, focalLength);
+			rasterise(window, cornell, camVec, camRot, modRot, focalLength);
 		} else if (!raytracedOnce) {
 			window.clearPixels();
-			raytrace(window, triangles, camVec, camRot, modRot, focalLength);
+			raytrace(window, cornell, camVec, camRot, modRot, focalLength);
 			raytracedOnce = true;
 		}
 		// We MUST poll for events - otherwise the window will freeze !
