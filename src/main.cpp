@@ -10,6 +10,7 @@
 #include "ObjReader.hpp"
 #include "RayTriangleIntersection.h"
 #include "Transform.hpp"
+#include "glm/detail/func_geometric.hpp"
 
 // vec3 comparator so I can use as key in map
 struct vec3Compare {
@@ -180,18 +181,21 @@ Colour diffuseAmbientShading(glm::vec3 lightPos, float lightStrength, float ambi
 	return colour;
 }
 
+float specularMultiplier(glm::vec3 lightPos, glm::vec3 intersectionPoint, glm::vec3 normal, glm::vec3 rayDir, int specExponent) {
+	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
+	glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
+	float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
+	float specular = std::pow(specAngle, specExponent);
+	return specular;
+}
+
 Colour specularShading(glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
-	float specular = 0;
 	Colour colour = intersection.intersectedTriangle.colour;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 	glm::vec3 intersectionPoint = intersection.intersectionPoint;
 
-	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
-	glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
-	float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
-	specular = std::pow(specAngle, 256);
-
 	// Add specular, assumes the light source is white (255, 255, 255)
+	float specular = specularMultiplier(lightPos, intersectionPoint, normal, rayDir, 256);
 	colour.red += (255.0f * specular);
 	colour.green += (255.0f * specular);
 	colour.blue += (255.0f * specular);
@@ -212,11 +216,17 @@ Colour gouraudShading(glm::vec3 lightPos, float lightStrength, float ambientLigh
 	float lightv1 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[1], triangle.vertexNormals[1]);
 	float lightv2 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[2], triangle.vertexNormals[2]);
 	float lightPoint = (1 - u - v) * lightv0 + u * lightv1 + v * lightv2;
-	// glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
-	// float lightPoint = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, intersection.intersectionPoint, intersectionNormal);
+
+	float specv0 = specularMultiplier(lightPos, triangle.vertices[0], triangle.vertexNormals[0], rayDir, 16);
+	float specv1 = specularMultiplier(lightPos, triangle.vertices[1], triangle.vertexNormals[1], rayDir, 16);
+	float specv2 = specularMultiplier(lightPos, triangle.vertices[2], triangle.vertexNormals[2], rayDir, 16);
+	float specPoint = (1 - u - v) * specv0 + u * specv1 + v * specv2;
 	colour.red *= lightPoint;
 	colour.green *= lightPoint;
 	colour.blue *= lightPoint;
+	colour.red += (255.0f * specPoint);
+	colour.green += (255.0f * specPoint);
+	colour.blue += (255.0f * specPoint);
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -230,15 +240,16 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	Colour colour = triangle.colour;
 	float u = intersection.u;
 	float v = intersection.v;
-	// float lightv0 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[0], triangle.vertexNormals[0]);
-	// float lightv1 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[1], triangle.vertexNormals[1]);
-	// float lightv2 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[2], triangle.vertexNormals[2]);
-	// float lightPoint = (1 - u - v) * lightv0 + u * lightv1 + v * lightv2;
 	glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
+	intersectionNormal = glm::normalize(intersectionNormal);
 	float lightPoint = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, intersection.intersectionPoint, intersectionNormal);
+	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 16);
 	colour.red *= lightPoint;
 	colour.green *= lightPoint;
 	colour.blue *= lightPoint;
+	colour.red += (255.0f * specPoint);
+	colour.green += (255.0f * specPoint);
+	colour.blue += (255.0f * specPoint);
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -249,9 +260,9 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
-	glm::vec3 lightPos = {0, 0, 2};
-	float lightStrength = 10;
-	float ambientLightStrength = 0.3;
+	glm::vec3 lightPos = {0.2, 1, 4};
+	float lightStrength = 50;
+	float ambientLightStrength = 0.1;
 	// Transform Light Position
 	glm::vec4 lightPos4{lightPos, 1};
 	lightPos4 = modRot * lightPos4;
@@ -310,7 +321,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			}
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
-				Colour colour = intersection.intersectedTriangle.colour;
+				Colour &colour = intersection.intersectedTriangle.colour;
 				// if (!calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
 				colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
 				// colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
