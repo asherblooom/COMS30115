@@ -297,6 +297,8 @@ Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		if (calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
+			// TODO: fix bad specular highlight on blue box mirror????
+			// FIXME: can't just light mirrors blue if they need shadow!!!
 			colour = ambientLightOnly(ambientLightStrength, intersection);
 		}
 		else {
@@ -315,8 +317,7 @@ Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec
 				colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 				break;
 			case MIRROR:
-				// only want to reflect once!
-				if (depth < 2){
+				if (depth < 6){
 					depth += 1;
 					glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
 					glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersection.intersectedTriangle.normal * glm::dot(incidentRay, intersection.intersectedTriangle.normal));
@@ -332,7 +333,7 @@ Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec
 				ModelTriangle& triangle = intersection.intersectedTriangle;
 				glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
 				intersectionNormal = glm::normalize(intersectionNormal);
-				if (depth < 2){
+				if (depth < 6){
 					depth += 1;
 					glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
 					glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersectionNormal * glm::dot(incidentRay, intersectionNormal));
@@ -434,16 +435,16 @@ int main(int argc, char *argv[]) {
 	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
 	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, false);
+	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, true);
 	calculateFaceNormals(cornell);
 	std::vector<ModelTriangle> blue = readObjFile("blue-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(blue, "blue", MIRROR, false);
+	setNameTypeAndShadows(blue, "blue", MIRROR, true);
 	calculateFaceNormals(blue);
 	cornell.insert(cornell.end(), std::make_move_iterator(blue.begin()), std::make_move_iterator(blue.end()));
 
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	setNameTypeAndShadows(sphere, "sphere", PHONG_MIRROR, false);
+	setNameTypeAndShadows(sphere, "sphere", PHONG_MIRROR, true);
 	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
