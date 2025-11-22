@@ -10,7 +10,8 @@ enum TriangleType {
 	FLAT_SPECULAR,
 	SMOOTH_GOURAUD,
 	SMOOTH_PHONG,
-	MIRROR
+	MIRROR,
+	PHONG_MIRROR
 };
 
 struct ModelTriangle {
@@ -21,6 +22,7 @@ struct ModelTriangle {
 	std::array<glm::vec3, 3> vertexNormals;
 	TriangleType type = FLAT;
 	bool shadows = true;
+	std::string objName; // name of object triangle is part of
 
 	ModelTriangle();
 	ModelTriangle(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2, Colour trigColour);

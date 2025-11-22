@@ -264,11 +264,13 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	return colour;
 }
 
-Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength){
+Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName = "", int depth = 0){
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
 
-	for (ModelTriangle &triangle : triangles) {
+	for (int i = 0; i < triangles.size(); i++) {
+		ModelTriangle& triangle = triangles.at(i);
+		if (depth > 0 && triangle.objName == originObjName) continue; // don't want to hit ourselves (for mirrors etc.)
 		glm::vec3 &v0 = triangle.vertices[0];
 		glm::vec3 &v1 = triangle.vertices[1];
 		glm::vec3 &v2 = triangle.vertices[2];
@@ -313,12 +315,33 @@ Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec
 				colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 				break;
 			case MIRROR:
-				glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
-				glm::vec3 reflection = glm::normalize(directionTriToLight - 2.0f * intersection.intersectedTriangle.normal * glm::dot(directionTriToLight, intersection.intersectedTriangle.normal));
-				colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength);
+				// only want to reflect once!
+				if (depth < 2){
+					depth += 1;
+					glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
+					glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersection.intersectedTriangle.normal * glm::dot(incidentRay, intersection.intersectedTriangle.normal));
+					colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
+				}
 				colour.red *= 0.8;
 				colour.green *= 0.8;
 				colour.blue *= 0.8;
+				break;
+			case PHONG_MIRROR:
+				float u = intersection.u;
+				float v = intersection.v;
+				ModelTriangle& triangle = intersection.intersectedTriangle;
+				glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
+				intersectionNormal = glm::normalize(intersectionNormal);
+				if (depth < 2){
+					depth += 1;
+					glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
+					glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersectionNormal * glm::dot(incidentRay, intersectionNormal));
+					colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
+				}
+				colour.red *= 0.8;
+				colour.green *= 0.8;
+				colour.blue *= 0.8;
+				break;
 			}
 		}
 		return colour;
@@ -327,7 +350,7 @@ Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec
 }
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
-	// -------Light Data--------
+	// Light Data
 	glm::vec3 lightPos = {0.4, 0, 2};
 	float lightStrength = 10;
 	float ambientLightStrength = 0.3;
@@ -363,59 +386,6 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 
 			Colour colour = castRay(transformedTriangles, camVeccy, rayDir, lightPos, lightStrength, ambientLightStrength);
 			draw(window, w, h, colour);
-
-// 			float tSmallest = MAXFLOAT;
-// 			RayTriangleIntersection intersection;
-// 
-// 			for (ModelTriangle &triangle : transformedTriangles) {
-// 				glm::vec3 &v0 = triangle.vertices[0];
-// 				glm::vec3 &v1 = triangle.vertices[1];
-// 				glm::vec3 &v2 = triangle.vertices[2];
-// 
-// 				glm::vec3 e0 = v1 - v0;
-// 				glm::vec3 e1 = v2 - v0;
-// 				glm::vec3 tuv = glm::inverse(glm::mat3(-rayDir, e0, e1)) * (camVeccy - v0);
-// 				float t = tuv.x;
-// 				float u = tuv.y;
-// 				float v = tuv.z;
-// 				if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
-// 					// we hit this triangle
-// 					if (t < tSmallest) {
-// 						tSmallest = t;
-// 						intersection.intersectedTriangle = triangle;
-// 						intersection.intersectionPoint = v0 + e0 * u + e1 * v;
-// 						intersection.distanceFromCamera = t;
-// 						intersection.u = u;
-// 						intersection.v = v;
-// 					}
-// 				}
-// 			}
-// 			if (tSmallest < MAXFLOAT) {
-// 				// we found a hit in the above loop
-// 				Colour &colour = intersection.intersectedTriangle.colour;
-// 				if (calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
-// 					colour = ambientLightOnly(ambientLightStrength, intersection);
-// 				} else {
-// 					switch (intersection.intersectedTriangle.type){
-// 						case FLAT:
-// 							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-// 							break;
-// 						case FLAT_SPECULAR:
-// 							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-// 							colour = specularShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-// 							break;
-// 						case SMOOTH_GOURAUD:
-// 							colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-// 							break;
-// 						case SMOOTH_PHONG:
-// 							colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-// 							break;
-// 						case MIRROR:
-// 							glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
-// 							glm::vec3 reflection = directionTriToLight - 2.0f * intersection.intersectedTriangle.normal * glm::dot(directionTriToLight, intersection.intersectedTriangle.normal);
-// 					}
-// 				}
-			// }
 		}
 	}
 }
@@ -446,8 +416,9 @@ void calculateVertexNormals(std::vector<ModelTriangle> &triangles) {
 	}
 }
 
-void setTypeShadows(std::vector<ModelTriangle> & triangles, TriangleType type, bool shadows){
+void setNameTypeAndShadows(std::vector<ModelTriangle> & triangles, std::string name, TriangleType type, bool shadows){
 	for (ModelTriangle &triangle : triangles){
+		triangle.objName = name;
 		triangle.type = type;
 		triangle.shadows = shadows;
 	}
@@ -463,12 +434,16 @@ int main(int argc, char *argv[]) {
 	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
 	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	setTypeShadows(cornell, FLAT_SPECULAR, true);
+	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, false);
 	calculateFaceNormals(cornell);
+	std::vector<ModelTriangle> blue = readObjFile("blue-box.obj", "cornell-box.mtl", 0.35);
+	setNameTypeAndShadows(blue, "blue", MIRROR, false);
+	calculateFaceNormals(blue);
+	cornell.insert(cornell.end(), std::make_move_iterator(blue.begin()), std::make_move_iterator(blue.end()));
 
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	setTypeShadows(sphere, SMOOTH_PHONG, false);
+	setNameTypeAndShadows(sphere, "sphere", PHONG_MIRROR, false);
 	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
@@ -476,6 +451,7 @@ int main(int argc, char *argv[]) {
 	glm::vec4 camVec = Translate(0, 0, 2) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
+	modRot = Rotate(0, 6, 0) * modRot;
 
 	while (true) {
 		if (rasterising) {
