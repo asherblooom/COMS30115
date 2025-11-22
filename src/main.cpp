@@ -264,6 +264,68 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	return colour;
 }
 
+Colour castRay(std::vector<ModelTriangle>& triangles, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength){
+	float tSmallest = MAXFLOAT;
+	RayTriangleIntersection intersection;
+
+	for (ModelTriangle &triangle : triangles) {
+		glm::vec3 &v0 = triangle.vertices[0];
+		glm::vec3 &v1 = triangle.vertices[1];
+		glm::vec3 &v2 = triangle.vertices[2];
+
+		glm::vec3 e0 = v1 - v0;
+		glm::vec3 e1 = v2 - v0;
+		glm::vec3 tuv = glm::inverse(glm::mat3(-direction, e0, e1)) * (origin - v0);
+		float t = tuv.x;
+		float u = tuv.y;
+		float v = tuv.z;
+		if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
+			// we hit this triangle
+			if (t < tSmallest) {
+				tSmallest = t;
+				intersection.intersectedTriangle = triangle;
+				intersection.intersectionPoint = v0 + e0 * u + e1 * v;
+				intersection.distanceFromCamera = t;
+				intersection.u = u;
+				intersection.v = v;
+			}
+		}
+	}
+	if (tSmallest < MAXFLOAT) {
+		// we found a hit in the above loop
+		Colour &colour = intersection.intersectedTriangle.colour;
+		if (calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
+			colour = ambientLightOnly(ambientLightStrength, intersection);
+		}
+		else {
+			switch (intersection.intersectedTriangle.type) {
+			case FLAT:
+				colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+				break;
+			case FLAT_SPECULAR:
+				colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+				colour = specularShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+				break;
+			case SMOOTH_GOURAUD:
+				colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+				break;
+			case SMOOTH_PHONG:
+				colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+				break;
+			case MIRROR:
+				glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
+				glm::vec3 reflection = glm::normalize(directionTriToLight - 2.0f * intersection.intersectedTriangle.normal * glm::dot(directionTriToLight, intersection.intersectedTriangle.normal));
+				colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength);
+				colour.red *= 0.8;
+				colour.green *= 0.8;
+				colour.blue *= 0.8;
+			}
+		}
+		return colour;
+	}
+	return {0,0,0};
+}
+
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
 	glm::vec3 lightPos = {0.4, 0, 2};
@@ -299,56 +361,61 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			float worldY = -(h - window.height / 2.0f) / 100;
 			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - camVeccy);
 
-			float tSmallest = MAXFLOAT;
-			RayTriangleIntersection intersection;
+			Colour colour = castRay(transformedTriangles, camVeccy, rayDir, lightPos, lightStrength, ambientLightStrength);
+			draw(window, w, h, colour);
 
-			for (ModelTriangle &triangle : transformedTriangles) {
-				glm::vec3 &v0 = triangle.vertices[0];
-				glm::vec3 &v1 = triangle.vertices[1];
-				glm::vec3 &v2 = triangle.vertices[2];
-
-				glm::vec3 e0 = v1 - v0;
-				glm::vec3 e1 = v2 - v0;
-				glm::vec3 tuv = glm::inverse(glm::mat3(-rayDir, e0, e1)) * (camVeccy - v0);
-				float t = tuv.x;
-				float u = tuv.y;
-				float v = tuv.z;
-				if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
-					// we hit this triangle
-					if (t < tSmallest) {
-						tSmallest = t;
-						intersection.intersectedTriangle = triangle;
-						intersection.intersectionPoint = v0 + e0 * u + e1 * v;
-						intersection.distanceFromCamera = t;
-						intersection.u = u;
-						intersection.v = v;
-					}
-				}
-			}
-			if (tSmallest < MAXFLOAT) {
-				// we found a hit in the above loop
-				Colour &colour = intersection.intersectedTriangle.colour;
-				if (calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
-					colour = ambientLightOnly(ambientLightStrength, intersection);
-				} else {
-					switch (intersection.intersectedTriangle.type){
-						case FLAT:
-							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-							break;
-						case FLAT_SPECULAR:
-							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-							colour = specularShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-							break;
-						case SMOOTH_GOURAUD:
-							colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-							break;
-						case SMOOTH_PHONG:
-							colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-							break;
-					}
-				}
-				draw(window, w, h, colour);
-			}
+// 			float tSmallest = MAXFLOAT;
+// 			RayTriangleIntersection intersection;
+// 
+// 			for (ModelTriangle &triangle : transformedTriangles) {
+// 				glm::vec3 &v0 = triangle.vertices[0];
+// 				glm::vec3 &v1 = triangle.vertices[1];
+// 				glm::vec3 &v2 = triangle.vertices[2];
+// 
+// 				glm::vec3 e0 = v1 - v0;
+// 				glm::vec3 e1 = v2 - v0;
+// 				glm::vec3 tuv = glm::inverse(glm::mat3(-rayDir, e0, e1)) * (camVeccy - v0);
+// 				float t = tuv.x;
+// 				float u = tuv.y;
+// 				float v = tuv.z;
+// 				if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
+// 					// we hit this triangle
+// 					if (t < tSmallest) {
+// 						tSmallest = t;
+// 						intersection.intersectedTriangle = triangle;
+// 						intersection.intersectionPoint = v0 + e0 * u + e1 * v;
+// 						intersection.distanceFromCamera = t;
+// 						intersection.u = u;
+// 						intersection.v = v;
+// 					}
+// 				}
+// 			}
+// 			if (tSmallest < MAXFLOAT) {
+// 				// we found a hit in the above loop
+// 				Colour &colour = intersection.intersectedTriangle.colour;
+// 				if (calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
+// 					colour = ambientLightOnly(ambientLightStrength, intersection);
+// 				} else {
+// 					switch (intersection.intersectedTriangle.type){
+// 						case FLAT:
+// 							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+// 							break;
+// 						case FLAT_SPECULAR:
+// 							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+// 							colour = specularShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+// 							break;
+// 						case SMOOTH_GOURAUD:
+// 							colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+// 							break;
+// 						case SMOOTH_PHONG:
+// 							colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+// 							break;
+// 						case MIRROR:
+// 							glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
+// 							glm::vec3 reflection = directionTriToLight - 2.0f * intersection.intersectedTriangle.normal * glm::dot(directionTriToLight, intersection.intersectedTriangle.normal);
+// 					}
+// 				}
+			// }
 		}
 	}
 }
