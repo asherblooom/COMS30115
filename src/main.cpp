@@ -114,6 +114,8 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 	shadowRayDir = glm::normalize(shadowRayDir);
 
 	bool needShadow = false;
+	float minT = distToLight;
+	ModelTriangle hitTri;
 
 	for (ModelTriangle &triangle : triangles) {
 		glm::vec3 &v0 = triangle.vertices[0];
@@ -129,11 +131,15 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 		// t > 0.00001 prevents shadow achne
 		if (t >= 0.001 && u > 0 && v > 0 && u + v < 1) {
 			// we hit a triangle
-			if (t < distToLight) {
-				needShadow = true;
-				break;
+			if (t < minT) {
+				minT = t;
+				hitTri = triangle;
 			}
 		}
+	}
+	if (minT < distToLight){
+		if (hitTri.shadows)
+			needShadow = true;
 	}
 	return needShadow;
 }
@@ -260,9 +266,9 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
-	glm::vec3 lightPos = {0.2, 1, 4};
-	float lightStrength = 50;
-	float ambientLightStrength = 0.1;
+	glm::vec3 lightPos = {0.4, 0, 2};
+	float lightStrength = 10;
+	float ambientLightStrength = 0.3;
 	// Transform Light Position
 	glm::vec4 lightPos4{lightPos, 1};
 	lightPos4 = modRot * lightPos4;
@@ -322,14 +328,25 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
 				Colour &colour = intersection.intersectedTriangle.colour;
-				// if (!calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
-				colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-				// colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-				// colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-				// colour = specularShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
-				// } else {
-				// 	colour = ambientLightOnly(ambientLightStrength, intersection);
-				// }
+				if (calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
+					colour = ambientLightOnly(ambientLightStrength, intersection);
+				} else {
+					switch (intersection.intersectedTriangle.type){
+						case FLAT:
+							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+							break;
+						case FLAT_SPECULAR:
+							colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+							colour = specularShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+							break;
+						case SMOOTH_GOURAUD:
+							colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+							break;
+						case SMOOTH_PHONG:
+							colour = phongShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+							break;
+					}
+				}
 				draw(window, w, h, colour);
 			}
 		}
@@ -359,7 +376,13 @@ void calculateVertexNormals(std::vector<ModelTriangle> &triangles) {
 		triangle.vertexNormals[0] = glm::normalize(vertexNormalSums[triangle.vertices[0]]);
 		triangle.vertexNormals[1] = glm::normalize(vertexNormalSums[triangle.vertices[1]]);
 		triangle.vertexNormals[2] = glm::normalize(vertexNormalSums[triangle.vertices[2]]);
-		// std::cout << glm::to_string(triangle.vertexNormals[0]) << "  ";
+	}
+}
+
+void setTypeShadows(std::vector<ModelTriangle> & triangles, TriangleType type, bool shadows){
+	for (ModelTriangle &triangle : triangles){
+		triangle.type = type;
+		triangle.shadows = shadows;
 	}
 }
 
@@ -372,11 +395,13 @@ int main(int argc, char *argv[]) {
 
 	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
-	// cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	// calculateFaceNormals(cornell);
+	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
+	setTypeShadows(cornell, FLAT_SPECULAR, true);
+	calculateFaceNormals(cornell);
 
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
+	setTypeShadows(sphere, SMOOTH_PHONG, false);
 	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
