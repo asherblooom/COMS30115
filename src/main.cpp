@@ -5,9 +5,20 @@
 #include <Utils.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <map>
 #include "Draw.hpp"
 #include "ObjReader.hpp"
+#include "RayTriangleIntersection.h"
 #include "Transform.hpp"
+
+// vec3 comparator so I can use as key in map
+struct vec3Compare {
+	bool operator()(const glm::vec3 &a, const glm::vec3 &b) const {
+		if (a.x != b.x) return a.x < b.x;
+		if (a.y != b.y) return a.y < b.y;
+		return a.z < b.z;
+	}
+};
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cameraRotation, glm::mat4 &modelRotation, glm::vec3 &vertexPosition, float focalLength) {
 	glm::vec4 vertexPos{vertexPosition, 1};
@@ -94,8 +105,8 @@ void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm
 	}
 }
 
-bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 trianglePos) {
-	glm::vec3 shadowRayDir = lightPos - trianglePos;
+bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 intersectionPoint) {
+	glm::vec3 shadowRayDir = lightPos - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
 	// but also so that t == distToLight (as the vector which t scales - shadowRayDir - has length 1 after normalisation)
@@ -110,7 +121,7 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 
 		glm::vec3 e0 = v1 - v0;
 		glm::vec3 e1 = v2 - v0;
-		glm::vec3 tuv = glm::inverse(glm::mat3(-shadowRayDir, e0, e1)) * (trianglePos - v0);
+		glm::vec3 tuv = glm::inverse(glm::mat3(-shadowRayDir, e0, e1)) * (intersectionPoint - v0);
 		float t = tuv.x;
 		float u = tuv.y;
 		float v = tuv.z;
@@ -126,17 +137,96 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 	return needShadow;
 }
 
+Colour ambientLightOnly(float ambientLightStrength, RayTriangleIntersection &intersection) {
+	Colour colour = intersection.intersectedTriangle.colour;
+	// add ambient light
+	colour.red *= ambientLightStrength;
+	colour.green *= ambientLightStrength;
+	colour.blue *= ambientLightStrength;
+	// Cap colour at (255, 255, 255)
+	colour.red = std::min(colour.red, 255);
+	colour.green = std::min(colour.green, 255);
+	colour.blue = std::min(colour.blue, 255);
+
+	return colour;
+}
+
+float diffuseAmbientMultiplier(glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 intersectionPoint, glm::vec3 normal) {
+	float diffuse = 0;
+	float ambient = ambientLightStrength;
+
+	float distanceTriToLight = glm::length(lightPos - intersectionPoint);
+	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
+	float dotProd = std::max(glm::dot(directionTriToLight, normal), 0.0f);
+	diffuse = (lightStrength * dotProd) / (4 * M_PI * distanceTriToLight);
+
+	return diffuse + ambient;
+}
+
+Colour flatShading(glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
+	float specular = 0;
+
+	Colour colour = intersection.intersectedTriangle.colour;
+	glm::vec3 normal = intersection.intersectedTriangle.normal;
+	glm::vec3 intersectionPoint = intersection.intersectionPoint;
+
+	// Calculate specular intensity
+	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
+	glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
+	float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
+	specular = std::pow(specAngle, 256);
+
+	// Add diffuse and ambient lighting
+	float light = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, intersectionPoint, normal);
+	colour.red *= light;
+	colour.green *= light;
+	colour.blue *= light;
+
+	// Add specular, assumes the light source is white (255, 255, 255)
+	colour.red += (255.0f * specular);
+	colour.green += (255.0f * specular);
+	colour.blue += (255.0f * specular);
+
+	// Cap colour at (255, 255, 255)
+	colour.red = std::min(colour.red, 255);
+	colour.green = std::min(colour.green, 255);
+	colour.blue = std::min(colour.blue, 255);
+	return colour;
+}
+
+Colour gouraudShading(glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, float u, float v) {
+	ModelTriangle triangle = intersection.intersectedTriangle;
+	Colour colour = triangle.colour;
+	float lightv0 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[0], triangle.vertexNormals[0]);
+	float lightv1 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[1], triangle.vertexNormals[1]);
+	float lightv2 = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, triangle.vertices[2], triangle.vertexNormals[2]);
+	float lightPoint = (1 - u - v) * lightv0 + u * lightv1 + v * lightv2;
+	// glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
+	// float lightPoint = diffuseAmbientMultiplier(lightPos, lightStrength, ambientLightStrength, intersection.intersectionPoint, intersectionNormal);
+	colour.red *= lightPoint;
+	colour.green *= lightPoint;
+	colour.blue *= lightPoint;
+
+	// Cap colour at (255, 255, 255)
+	colour.red = std::min(colour.red, 255);
+	colour.green = std::min(colour.green, 255);
+	colour.blue = std::min(colour.blue, 255);
+	return colour;
+}
+
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// -------Light Data--------
 	glm::vec3 lightPos = {0, 0, 2};
-	float strength = 10;
-
+	float lightStrength = 10;
+	float ambientLightStrength = 0.3;
 	// Transform Light Position
 	glm::vec4 lightPos4{lightPos, 1};
 	lightPos4 = modRot * lightPos4;
 	lightPos4 -= camVec;
 	lightPos4 = camRot * lightPos4;
 	lightPos = {lightPos4.x, lightPos4.y, lightPos4.z};
+
+	float closestU, closestV;
 
 	// transform triangle vertices
 	// note: copying here instead of using reference as we do not want to transform the actual triangles that are passed into this function
@@ -162,9 +252,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - camVeccy);
 
 			float tSmallest = MAXFLOAT;
-			glm::vec3 tSmallestTrianglePos;
-			Colour tSmallestColour{0, 0, 0};
-			glm::vec3 tSmallestNormal{0, 0, 0};
+			RayTriangleIntersection intersection;
 
 			for (ModelTriangle &triangle : transformedTriangles) {
 				glm::vec3 &v0 = triangle.vertices[0];
@@ -181,50 +269,53 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 					// we hit this triangle
 					if (t < tSmallest) {
 						tSmallest = t;
-						tSmallestTrianglePos = v0 + e0 * u + e1 * v;
-						tSmallestColour = triangle.colour;
-						tSmallestNormal = triangle.normal;
+						intersection.intersectedTriangle = triangle;
+						intersection.intersectionPoint = v0 + e0 * u + e1 * v;
+						intersection.distanceFromCamera = t;
+						closestU = u;
+						closestV = v;
 					}
 				}
 			}
 			if (tSmallest < MAXFLOAT) {
 				// we found a hit in the above loop
-				// light the hit pixel
-				float diffuse = 0;
-				float ambient = 0.5;
-				float specular = 0;
-
-				float distanceTriToLight = glm::length(lightPos - tSmallestTrianglePos);
-				glm::vec3 directionTriToLight = glm::normalize(lightPos - tSmallestTrianglePos);
-
-				if (!calculateShadows(transformedTriangles, lightPos, tSmallestTrianglePos)) {
-					// Calculate direct (diffuse) lighting
-					float dotProd = std::max(glm::dot(directionTriToLight, tSmallestNormal), 0.0f);
-					diffuse = (strength * dotProd) / (4 * M_PI * distanceTriToLight);
-
-					// Calculate specular intensity
-					glm::vec3 reflection = directionTriToLight - 2.0f * tSmallestNormal * glm::dot(directionTriToLight, tSmallestNormal);
-					float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
-					specular = std::pow(specAngle, 256);
-				}
-
-				// Add diffuse and ambient lighting
-				tSmallestColour.red *= diffuse + ambient;
-				tSmallestColour.green *= diffuse + ambient;
-				tSmallestColour.blue *= diffuse + ambient;
-
-				// Add specular, assumes the light source is white (255, 255, 255)
-				tSmallestColour.red += (255.0f * specular);
-				tSmallestColour.green += (255.0f * specular);
-				tSmallestColour.blue += (255.0f * specular);
-
-				// Cap colour at (255, 255, 255)
-				tSmallestColour.red = std::min(tSmallestColour.red, 255);
-				tSmallestColour.green = std::min(tSmallestColour.green, 255);
-				tSmallestColour.blue = std::min(tSmallestColour.blue, 255);
+				Colour colour = intersection.intersectedTriangle.colour;
+				// if (!calculateShadows(transformedTriangles, lightPos, intersection.intersectionPoint)) {
+				colour = gouraudShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection, closestU, closestV);
+				// colour = flatShading(lightPos, lightStrength, ambientLightStrength, rayDir, intersection);
+				// } else {
+				// 	colour = ambientLightOnly(ambientLightStrength, intersection);
+				// }
+				draw(window, w, h, colour);
 			}
-			draw(window, w, h, tSmallestColour);
 		}
+	}
+}
+
+void calculateFaceNormals(std::vector<ModelTriangle> &triangles) {
+	for (ModelTriangle &triangle : triangles) {
+		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
+	}
+}
+
+void calculateVertexNormals(std::vector<ModelTriangle> &triangles) {
+	// key: vertex (unique), value: sum of face normals (of each face that uses the vertex)
+	std::map<glm::vec3, glm::vec3, vec3Compare> vertexNormalSums;
+	for (ModelTriangle &triangle : triangles) {
+		// compute face normal
+		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
+
+		// add face normal to vertex sum
+		vertexNormalSums[triangle.vertices[0]] += triangle.normal;
+		vertexNormalSums[triangle.vertices[1]] += triangle.normal;
+		vertexNormalSums[triangle.vertices[2]] += triangle.normal;
+	}
+	for (ModelTriangle &triangle : triangles) {
+		// find average of all face normals by normalising
+		triangle.vertexNormals[0] = glm::normalize(vertexNormalSums[triangle.vertices[0]]);
+		triangle.vertexNormals[1] = glm::normalize(vertexNormalSums[triangle.vertices[1]]);
+		triangle.vertexNormals[2] = glm::normalize(vertexNormalSums[triangle.vertices[2]]);
+		// std::cout << glm::to_string(triangle.vertexNormals[0]) << "  ";
 	}
 }
 
@@ -235,16 +326,14 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
+	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
-	std::vector<ModelTriangle> cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	for (auto &triangle : cornell) {
-		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
-	}
+	// cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
+	// calculateFaceNormals(cornell);
+
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	for (auto &triangle : sphere) {
-		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
-	}
+	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
 
