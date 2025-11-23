@@ -307,10 +307,10 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
 	}
 	// calculate specular highlight
-	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
+	// glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
 	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 256);
-	float lightAngle = std::max(0.0f, glm::dot(intersectionNormal, directionTriToLight));
-	specPoint *= lightAngle;
+	// float lightAngle = std::max(0.0f, glm::dot(intersectionNormal, directionTriToLight));
+	// specPoint *= lightAngle;
 	colour.red += (255.0f * specPoint);
 	colour.green += (255.0f * specPoint);
 	colour.blue += (255.0f * specPoint);
@@ -359,7 +359,7 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 	if (tSmallest < MAXFLOAT) {
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
-		int maxDepth = 6;
+		int maxDepth = 4;
 		TriangleType type = intersection.intersectedTriangle.type;
 		if (type != MIRROR && type != PHONG_MIRROR && calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
 			// TODO: turn off specular highlights on mirrors if they are in shadow?!?!?
@@ -421,16 +421,15 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 		transformedTriangles.push_back(triangle);
 	}
 
-	glm::vec3 camVeccy = {camVec.x, camVec.y, camVec.z};
-
+	glm::vec3 origin = {0,0,0};
 	for (int h = 0; h < window.height; h++) {
 		for (int w = 0; w < window.width; w++) {
 			// (de)scale by 100
 			float worldX = (w - window.width / 2.0f) / 100;
 			float worldY = -(h - window.height / 2.0f) / 100;
-			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - camVeccy);
+			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - origin);
 
-			Colour colour = castRay(transformedTriangles, camVeccy, rayDir, lightPos, lightStrength, ambientLightStrength);
+			Colour colour = castRay(transformedTriangles, origin, rayDir, lightPos, lightStrength, ambientLightStrength);
 			draw(window, w, h, colour);
 		}
 	}
@@ -473,31 +472,31 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 int main(int argc, char *argv[]) {
 	bool rasterising = true;
 	bool raytracedOnce = false;
-	float focalLength = 3;
+	float focalLength = 2;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
 	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
 	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, true);
+	setNameTypeAndShadows(cornell, "cornell", FLAT, true);
 	calculateFaceNormals(cornell);
 	std::vector<ModelTriangle> blue = readObjFile("blue-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(blue, "blue", MIRROR, true);
+	setNameTypeAndShadows(blue, "blue", FLAT, true);
 	calculateFaceNormals(blue);
 	cornell.insert(cornell.end(), std::make_move_iterator(blue.begin()), std::make_move_iterator(blue.end()));
 
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	setNameTypeAndShadows(sphere, "sphere", PHONG_MIRROR, true);
+	setNameTypeAndShadows(sphere, "sphere", FLAT, true);
 	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
 
-	glm::vec4 camVec = Translate(0, 0, 2) * glm::vec4(0, 0, 0, 1);
+	glm::vec4 camVec = Translate(0, 0, 4) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
-	modRot = Rotate(0, 4, 0) * modRot;
+	// modRot = Rotate(0, 4, 0) * modRot;
 
 	while (true) {
 		if (rasterising) {
@@ -505,8 +504,10 @@ int main(int argc, char *argv[]) {
 			rasterise(window, cornell, camVec, camRot, modRot, focalLength);
 		} else if (!raytracedOnce) {
 			window.clearPixels();
+			std::cout << "starting raytracing\n";
 			raytrace(window, cornell, camVec, camRot, modRot, focalLength);
 			raytracedOnce = true;
+			std::cout << "finished raytracing\n";
 		}
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, camVec, camRot, modRot, rasterising, raytracedOnce);
