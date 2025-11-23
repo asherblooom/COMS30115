@@ -131,7 +131,7 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 		float t = tuv.x;
 		float u = tuv.y;
 		float v = tuv.z;
-		// t > 0.00001 prevents shadow achne
+		// t > 0.001 prevents shadow achne
 		if (t >= 0.001 && u > 0 && v > 0 && u + v < 1) {
 			// we hit a triangle
 			if (t < minT) {
@@ -192,8 +192,6 @@ Colour diffuseAmbientShading(glm::vec3 lightPos, float lightStrength, float ambi
 
 float specularMultiplier(glm::vec3 lightPos, glm::vec3 intersectionPoint, glm::vec3 normal, glm::vec3 rayDir, int specExponent) {
 	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
-	// TODO: remove this
-	// if (glm::dot(directionTriToLight, normal) <= 0.0f) return 0;
 	glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
 	float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
 	float specular = std::pow(specAngle, specExponent);
@@ -269,18 +267,20 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	return colour;
 }
 
-Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth) {
+Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersection.intersectedTriangle.normal * glm::dot(rayDir, intersection.intersectedTriangle.normal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
 	}
-	// calculate specular highlight
-	float specular = specularMultiplier(lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512);
-	colour.red += (255.0f * specular);
-	colour.green += (255.0f * specular);
-	colour.blue += (255.0f * specular);
+	if (!inShadow){
+		// calculate specular highlight
+		float specular = specularMultiplier(lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512);
+		colour.red += (255.0f * specular);
+		colour.green += (255.0f * specular);
+		colour.blue += (255.0f * specular);
+	}
 
 	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
 	colour.red *= 0.8;
@@ -294,7 +294,7 @@ Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float l
 	return colour;
 }
 
-Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth) {
+Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -306,14 +306,13 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersectionNormal * glm::dot(rayDir, intersectionNormal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
 	}
-	// calculate specular highlight
-	// glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
-	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 256);
-	// float lightAngle = std::max(0.0f, glm::dot(intersectionNormal, directionTriToLight));
-	// specPoint *= lightAngle;
-	colour.red += (255.0f * specPoint);
-	colour.green += (255.0f * specPoint);
-	colour.blue += (255.0f * specPoint);
+	if (!inShadow){
+		// calculate specular highlight
+		float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 256);
+		colour.red += (255.0f * specPoint);
+		colour.green += (255.0f * specPoint);
+		colour.blue += (255.0f * specPoint);
+	}
 
 	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
 	colour.red *= 0.8;
@@ -359,11 +358,20 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 	if (tSmallest < MAXFLOAT) {
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
-		int maxDepth = 4;
-		TriangleType type = intersection.intersectedTriangle.type;
-		if (type != MIRROR && type != PHONG_MIRROR && calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
-			// TODO: turn off specular highlights on mirrors if they are in shadow?!?!?
-			colour = ambientLightOnly(ambientLightStrength, intersection);
+		int maxDepth = 15;
+		bool inShadow = calculateShadows(triangles, lightPos, intersection.intersectionPoint);
+		if (inShadow) {
+			switch (intersection.intersectedTriangle.type){
+				case MIRROR:
+					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					break;
+				case PHONG_MIRROR:
+					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					break;
+				default:
+					colour = ambientLightOnly(ambientLightStrength, intersection);
+					break;
+			}
 		} else {
 			switch (intersection.intersectedTriangle.type) {
 				case FLAT:
@@ -380,12 +388,10 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 					colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
 				case MIRROR:
-					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth);
-					// colour = specularShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 				case PHONG_MIRROR:
-					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth);
-					// colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
+					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 			}
 		}
@@ -470,33 +476,33 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = true;
+	bool rasterising = false;
 	bool raytracedOnce = false;
-	float focalLength = 2;
+	float focalLength = 4;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
 	std::vector<ModelTriangle> cornell;
 	// load cornell box model and calculate normals
 	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(cornell, "cornell", FLAT, true);
+	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, true);
 	calculateFaceNormals(cornell);
 	std::vector<ModelTriangle> blue = readObjFile("blue-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(blue, "blue", FLAT, true);
+	setNameTypeAndShadows(blue, "blue", FLAT_SPECULAR, true);
 	calculateFaceNormals(blue);
 	cornell.insert(cornell.end(), std::make_move_iterator(blue.begin()), std::make_move_iterator(blue.end()));
 
 	// load sphere model and calculate normals
 	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	setNameTypeAndShadows(sphere, "sphere", FLAT, true);
+	setNameTypeAndShadows(sphere, "sphere", SMOOTH_PHONG, true);
 	calculateVertexNormals(sphere);
 	// append sphere's triangles to cornell's
 	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
 
-	glm::vec4 camVec = Translate(0, 0, 4) * glm::vec4(0, 0, 0, 1);
+	glm::vec4 camVec = Translate(0, 0, 3) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
-	// modRot = Rotate(0, 4, 0) * modRot;
+	modRot = Rotate(0, 4, 0) * modRot;
 
 	while (true) {
 		if (rasterising) {
