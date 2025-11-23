@@ -109,7 +109,7 @@ void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm
 	}
 }
 
-bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 intersectionPoint) {
+bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 intersectionPoint, std::string originObjName) {
 	glm::vec3 shadowRayDir = lightPos - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
@@ -121,6 +121,7 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 	ModelTriangle hitTri;
 
 	for (ModelTriangle &triangle : triangles) {
+		if (triangle.objName == originObjName) continue; // don't want to hit ourselves
 		glm::vec3 &v0 = triangle.vertices[0];
 		glm::vec3 &v1 = triangle.vertices[1];
 		glm::vec3 &v2 = triangle.vertices[2];
@@ -359,7 +360,7 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 15;
-		bool inShadow = calculateShadows(triangles, lightPos, intersection.intersectionPoint);
+		bool inShadow = calculateShadows(triangles, lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.objName);
 		if (inShadow) {
 			switch (intersection.intersectedTriangle.type){
 				case MIRROR:
@@ -475,29 +476,33 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 	}
 }
 
+void loadModel(std::vector<ModelTriangle>& scene, std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows){
+	std::vector<ModelTriangle> triangles = readObjFile(objFile, mtlFile, scale);
+	setNameTypeAndShadows(triangles, name, type, shadows);
+	if (type == PHONG_MIRROR || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG)
+		calculateVertexNormals(triangles);
+	else
+		calculateFaceNormals(triangles);
+	scene.insert(scene.end(), std::make_move_iterator(triangles.begin()), std::make_move_iterator(triangles.end()));
+}
+
 int main(int argc, char *argv[]) {
-	bool rasterising = false;
+	bool rasterising = true;
 	bool raytracedOnce = false;
 	float focalLength = 4;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	std::vector<ModelTriangle> cornell;
-	// load cornell box model and calculate normals
-	cornell = readObjFile("cornell-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(cornell, "cornell", FLAT_SPECULAR, true);
-	calculateFaceNormals(cornell);
-	std::vector<ModelTriangle> blue = readObjFile("blue-box.obj", "cornell-box.mtl", 0.35);
-	setNameTypeAndShadows(blue, "blue", FLAT_SPECULAR, true);
-	calculateFaceNormals(blue);
-	cornell.insert(cornell.end(), std::make_move_iterator(blue.begin()), std::make_move_iterator(blue.end()));
-
-	// load sphere model and calculate normals
-	std::vector<ModelTriangle> sphere = readObjFile("sphere.obj", "", 0.35);
-	setNameTypeAndShadows(sphere, "sphere", SMOOTH_PHONG, true);
-	calculateVertexNormals(sphere);
-	// append sphere's triangles to cornell's
-	cornell.insert(cornell.end(), std::make_move_iterator(sphere.begin()), std::make_move_iterator(sphere.end()));
+	// load models
+	std::vector<ModelTriangle> scene;
+	loadModel(scene, "red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
+	loadModel(scene, "blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", MIRROR, true);
+	loadModel(scene, "left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
+	loadModel(scene, "right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
+	loadModel(scene, "back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
+	loadModel(scene, "ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
+	loadModel(scene, "floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
+	loadModel(scene, "sphere.obj", "", 0.35, "sphere", SMOOTH_PHONG, true);
 
 	glm::vec4 camVec = Translate(0, 0, 3) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
@@ -507,11 +512,11 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		if (rasterising) {
 			window.clearPixels();
-			rasterise(window, cornell, camVec, camRot, modRot, focalLength);
+			rasterise(window, scene, camVec, camRot, modRot, focalLength);
 		} else if (!raytracedOnce) {
 			window.clearPixels();
 			std::cout << "starting raytracing\n";
-			raytrace(window, cornell, camVec, camRot, modRot, focalLength);
+			raytrace(window, scene, camVec, camRot, modRot, focalLength);
 			raytracedOnce = true;
 			std::cout << "finished raytracing\n";
 		}
