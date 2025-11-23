@@ -192,6 +192,8 @@ Colour diffuseAmbientShading(glm::vec3 lightPos, float lightStrength, float ambi
 
 float specularMultiplier(glm::vec3 lightPos, glm::vec3 intersectionPoint, glm::vec3 normal, glm::vec3 rayDir, int specExponent) {
 	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
+	// TODO: remove this
+	// if (glm::dot(directionTriToLight, normal) <= 0.0f) return 0;
 	glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
 	float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
 	float specular = std::pow(specAngle, specExponent);
@@ -271,12 +273,11 @@ Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float l
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
-		glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
-		glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersection.intersectedTriangle.normal * glm::dot(incidentRay, intersection.intersectedTriangle.normal));
+		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersection.intersectedTriangle.normal * glm::dot(rayDir, intersection.intersectedTriangle.normal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
 	}
 	// calculate specular highlight
-	float specular = specularMultiplier(lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 256);
+	float specular = specularMultiplier(lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512);
 	colour.red += (255.0f * specular);
 	colour.green += (255.0f * specular);
 	colour.blue += (255.0f * specular);
@@ -302,12 +303,14 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 	intersectionNormal = glm::normalize(intersectionNormal);
 	if (depth < maxDepth) {
 		depth += 1;
-		glm::vec3 incidentRay = glm::normalize(intersection.intersectionPoint - lightPos);
-		glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersectionNormal * glm::dot(incidentRay, intersectionNormal));
+		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersectionNormal * glm::dot(rayDir, intersectionNormal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
 	}
 	// calculate specular highlight
-	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 16);
+	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersection.intersectionPoint);
+	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 256);
+	float lightAngle = std::max(0.0f, glm::dot(intersectionNormal, directionTriToLight));
+	specPoint *= lightAngle;
 	colour.red += (255.0f * specPoint);
 	colour.green += (255.0f * specPoint);
 	colour.blue += (255.0f * specPoint);
@@ -358,8 +361,8 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 6;
 		TriangleType type = intersection.intersectedTriangle.type;
-		// TODO: fix bad specular highlight on blue box mirror????
 		if (type != MIRROR && type != PHONG_MIRROR && calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
+			// TODO: turn off specular highlights on mirrors if they are in shadow?!?!?
 			colour = ambientLightOnly(ambientLightStrength, intersection);
 		} else {
 			switch (intersection.intersectedTriangle.type) {
@@ -405,6 +408,7 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 
 	// transform triangle vertices
 	// note: copying here instead of using reference as we do not want to transform the actual triangles that are passed into this function
+	// FIXME: WE DONT TRANSFORM NORMALS!!!!!!
 	std::vector<ModelTriangle> transformedTriangles;
 	for (ModelTriangle triangle : triangles) {
 		for (glm::vec3 &vertex : triangle.vertices) {
@@ -467,7 +471,7 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = false;
+	bool rasterising = true;
 	bool raytracedOnce = false;
 	float focalLength = 3;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
