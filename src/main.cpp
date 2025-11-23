@@ -267,7 +267,7 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	return colour;
 }
 
-Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, RayTriangleIntersection &intersection, int depth, int maxDepth) {
+Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth) {
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
@@ -275,13 +275,25 @@ Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float l
 		glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersection.intersectedTriangle.normal * glm::dot(incidentRay, intersection.intersectedTriangle.normal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
 	}
+	// calculate specular highlight
+	float specular = specularMultiplier(lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 256);
+	colour.red += (255.0f * specular);
+	colour.green += (255.0f * specular);
+	colour.blue += (255.0f * specular);
+
+	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
 	colour.red *= 0.8;
 	colour.green *= 0.8;
 	colour.blue *= 0.8;
+
+	// Cap colour at (255, 255, 255)
+	colour.red = std::min(colour.red, 255);
+	colour.green = std::min(colour.green, 255);
+	colour.blue = std::min(colour.blue, 255);
 	return colour;
 }
 
-Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, RayTriangleIntersection &intersection, int depth, int maxDepth) {
+Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -294,9 +306,21 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 		glm::vec3 reflection = glm::normalize(incidentRay - 2.0f * intersectionNormal * glm::dot(incidentRay, intersectionNormal));
 		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
 	}
+	// calculate specular highlight
+	float specPoint = specularMultiplier(lightPos, intersection.intersectionPoint, intersectionNormal, rayDir, 16);
+	colour.red += (255.0f * specPoint);
+	colour.green += (255.0f * specPoint);
+	colour.blue += (255.0f * specPoint);
+
+	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
 	colour.red *= 0.8;
 	colour.green *= 0.8;
 	colour.blue *= 0.8;
+
+	// Cap colour at (255, 255, 255)
+	colour.red = std::min(colour.red, 255);
+	colour.green = std::min(colour.green, 255);
+	colour.blue = std::min(colour.blue, 255);
 	return colour;
 }
 
@@ -333,23 +357,10 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 6;
-		if (calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
-			// TODO: fix bad specular highlight on blue box mirror????
-			// FIXME: can't just light mirrors blue if they need shadow!!!
-			switch (intersection.intersectedTriangle.type) {
-				case FLAT:
-				case FLAT_SPECULAR:
-				case SMOOTH_GOURAUD:
-				case SMOOTH_PHONG:
-					colour = ambientLightOnly(ambientLightStrength, intersection);
-					break;
-				case MIRROR:
-					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, intersection, depth, maxDepth);
-					break;
-				case PHONG_MIRROR:
-					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, intersection, depth, maxDepth);
-					break;
-			}
+		TriangleType type = intersection.intersectedTriangle.type;
+		// TODO: fix bad specular highlight on blue box mirror????
+		if (type != MIRROR && type != PHONG_MIRROR && calculateShadows(triangles, lightPos, intersection.intersectionPoint)) {
+			colour = ambientLightOnly(ambientLightStrength, intersection);
 		} else {
 			switch (intersection.intersectedTriangle.type) {
 				case FLAT:
@@ -366,10 +377,12 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 					colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
 				case MIRROR:
-					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, intersection, depth, maxDepth);
+					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth);
+					// colour = specularShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
 				case PHONG_MIRROR:
-					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, intersection, depth, maxDepth);
+					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth);
+					// colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
 			}
 		}
@@ -380,7 +393,7 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 
 void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// Light Data
-	glm::vec3 lightPos = {0.4, 0, 2};
+	glm::vec3 lightPos = {-0.3, 0.9, 0.8};
 	float lightStrength = 10;
 	float ambientLightStrength = 0.3;
 	// Transform Light Position
@@ -480,7 +493,7 @@ int main(int argc, char *argv[]) {
 	glm::vec4 camVec = Translate(0, 0, 2) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
 	glm::mat4 modRot{1};
-	modRot = Rotate(0, 6, 0) * modRot;
+	modRot = Rotate(0, 4, 0) * modRot;
 
 	while (true) {
 		if (rasterising) {
