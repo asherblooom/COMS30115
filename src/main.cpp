@@ -4,25 +4,14 @@
 #include <DrawingWindow.h>
 #include <Utils.h>
 #include <ModelTriangle.h>
-#include <RayTriangleIntersection.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <map>
 #include "Draw.hpp"
 #include "Model.hpp"
-#include "ObjReader.hpp"
-#include "Transform.hpp"
+#include "RayTriangleIntersection.h"
+#include "Camera.hpp"
 
 Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName = "", int depth = 0);
-
-// vec3 comparator so I can use as key in map
-struct vec3Compare {
-	bool operator()(const glm::vec3 &a, const glm::vec3 &b) const {
-		if (a.x != b.x) return a.x < b.x;
-		if (a.y != b.y) return a.y < b.y;
-		return a.z < b.z;
-	}
-};
 
 void handleEvent(SDL_Event event, DrawingWindow &window, Camera& camera, bool &rasterising, bool &raytracedOnce) {
 	if (event.type == SDL_KEYDOWN) {
@@ -130,8 +119,8 @@ bool calculateShadows(std::vector<Model>& scene, glm::vec3 lightPos, glm::vec3 i
 	ModelTriangle hitTri;
 
 	for (Model& model : scene){
+		if (model.name == originObjName) continue; // don't want to hit ourselves
 		for (ModelTriangle &triangle : model.triangles) {
-			if (triangle.objName == originObjName) continue; // don't want to hit ourselves
 			glm::vec3 &v0 = triangle.vertices[0];
 			glm::vec3 &v1 = triangle.vertices[1];
 			glm::vec3 &v2 = triangle.vertices[2];
@@ -147,15 +136,15 @@ bool calculateShadows(std::vector<Model>& scene, glm::vec3 lightPos, glm::vec3 i
 				// we hit a triangle
 				if (t < minT) {
 					minT = t;
-					hitTri = triangle;
+					needShadow = model.shadows;
 				}
 			}
 		}
 	}
-	if (minT < distToLight) {
-		if (hitTri.shadows)
-			needShadow = true;
-	}
+	// if (minT < distToLight) {
+	// 	if (hitTri.shadows)
+	// 		needShadow = true;
+	// }
 	return needShadow;
 }
 
@@ -284,7 +273,7 @@ Colour mirror(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersection.intersectedTriangle.normal * glm::dot(rayDir, intersection.intersectedTriangle.normal));
-		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
+		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedModel.name, depth);
 	}
 	if (!inShadow){
 		// calculate specular highlight
@@ -316,7 +305,7 @@ Colour mirrorPhong(std::vector<Model> &scene, glm::vec3 lightPos, float lightStr
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersectionNormal * glm::dot(rayDir, intersectionNormal));
-		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
+		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedModel.name, depth);
 	}
 	if (!inShadow){
 		// calculate specular highlight
@@ -343,9 +332,9 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 	RayTriangleIntersection intersection;
 
 	for (Model& model : scene){
+		if (depth > 0 && model.name == originObjName) continue;  // don't want to hit ourselves (for mirrors etc.)
 		for (int i = 0; i < model.triangles.size(); i++) {
 			ModelTriangle &triangle = model.triangles.at(i);
-			if (depth > 0 && triangle.objName == originObjName) continue;  // don't want to hit ourselves (for mirrors etc.)
 			glm::vec3 &v0 = triangle.vertices[0];
 			glm::vec3 &v1 = triangle.vertices[1];
 			glm::vec3 &v2 = triangle.vertices[2];
@@ -361,6 +350,7 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 				if (t < tSmallest) {
 					tSmallest = t;
 					intersection.intersectedTriangle = triangle;
+					intersection.intersectedModel = model;
 					intersection.intersectionPoint = v0 + e0 * u + e1 * v;
 					intersection.distanceFromCamera = t;
 					intersection.u = u;
@@ -373,9 +363,9 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 15;
-		bool inShadow = calculateShadows(scene, lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.objName);
+		bool inShadow = calculateShadows(scene, lightPos, intersection.intersectionPoint, intersection.intersectedModel.name);
 		if (inShadow) {
-			switch (intersection.intersectedTriangle.type){
+			switch (intersection.intersectedModel.type){
 				case MIRROR:
 					colour = mirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
@@ -387,7 +377,7 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 					break;
 			}
 		} else {
-			switch (intersection.intersectedTriangle.type) {
+			switch (intersection.intersectedModel.type) {
 				case FLAT:
 					colour = diffuseAmbientShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
@@ -437,50 +427,6 @@ void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera& camera) 
 	}
 }
 
-void calculateFaceNormals(std::vector<ModelTriangle> &triangles) {
-	for (ModelTriangle &triangle : triangles) {
-		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
-	}
-}
-
-void calculateVertexNormals(std::vector<ModelTriangle> &triangles) {
-	// key: vertex (unique), value: sum of face normals (of each face that uses the vertex)
-	std::map<glm::vec3, glm::vec3, vec3Compare> vertexNormalSums;
-	for (ModelTriangle &triangle : triangles) {
-		// compute face normal
-		triangle.normal = glm::normalize(glm::cross(triangle.vertices[1] - triangle.vertices[0], triangle.vertices[2] - triangle.vertices[0]));
-
-		// add face normal to vertex sum
-		vertexNormalSums[triangle.vertices[0]] += triangle.normal;
-		vertexNormalSums[triangle.vertices[1]] += triangle.normal;
-		vertexNormalSums[triangle.vertices[2]] += triangle.normal;
-	}
-	for (ModelTriangle &triangle : triangles) {
-		// find average of all face normals by normalising
-		triangle.vertexNormals[0] = glm::normalize(vertexNormalSums[triangle.vertices[0]]);
-		triangle.vertexNormals[1] = glm::normalize(vertexNormalSums[triangle.vertices[1]]);
-		triangle.vertexNormals[2] = glm::normalize(vertexNormalSums[triangle.vertices[2]]);
-	}
-}
-
-void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string name, TriangleType type, bool shadows) {
-	for (ModelTriangle &triangle : triangles) {
-		triangle.objName = name;
-		triangle.type = type;
-		triangle.shadows = shadows;
-	}
-}
-
-void loadModel(std::vector<Model>& scene, std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows){
-	Model model{readObjFile(objFile, mtlFile, scale), name};
-	setNameTypeAndShadows(model.triangles, name, type, shadows);
-	if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG)
-		calculateVertexNormals(model.triangles);
-	else
-		calculateFaceNormals(model.triangles);
-	scene.emplace_back(model);
-}
-
 int main(int argc, char *argv[]) {
 	bool rasterising = false;
 	bool raytracedOnce = false;
@@ -490,24 +436,18 @@ int main(int argc, char *argv[]) {
 
 	// load models
 	std::vector<Model> scene;
-	loadModel(scene, "red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
-	loadModel(scene, "blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true);
-	loadModel(scene, "left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
-	loadModel(scene, "right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
-	loadModel(scene, "back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
-	loadModel(scene, "ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
-	loadModel(scene, "floor.obj", "cornell-box.mtl", 0.35, "floor", MIRROR, true);
-	loadModel(scene, "sphere.obj", "", 0.35, "sphere", MIRROR_PHONG, true);
-
-	glm::vec4 camVec = Translate(0, 0, 3) * glm::vec4(0, 0, 0, 1);
-	glm::mat4 camRot{1};
-	glm::mat4 modRot{1};
-	modRot = Rotate(0, 4, 0) * modRot;
-
+	scene.emplace_back("red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
+	scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true);
+	scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
+	scene.emplace_back("right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
+	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
+	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
+	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
+	scene.emplace_back("sphere.obj", "", 0.35, "sphere", MIRROR_PHONG, true);
 
 	Camera camera {focalLength};
 	camera.translate(0, 0, 3);
-	// camera.rotate(10, 0, 0);
+	camera.rotate(0, -4, 0);
 
 	while (true) {
 		if (rasterising) {

@@ -2,12 +2,14 @@
 
 #include <glm/glm.hpp>
 #include <iostream>
-#include "ModelTriangle.h"
+#include <ModelTriangle.h>
+#include "Model.hpp"
 
 struct RayTriangleIntersection {
 	glm::vec3 intersectionPoint;
 	float distanceFromCamera;
 	ModelTriangle intersectedTriangle;
+	Model intersectedModel;
 	size_t triangleIndex;
 	float u;
 	float v;
