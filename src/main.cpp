@@ -82,14 +82,8 @@ void handleEvent(SDL_Event event, DrawingWindow &window, Camera& camera, bool &r
 }
 
 CanvasPoint getCanvasIntersectionPoint(Camera& camera, glm::vec3 vertexPosition) {
-	// glm::vec4 vertexPos{vertexPosition, 1};
-	// vertexPos = modelRotation * vertexPos;
-	// vertexPos -= cameraPosition;
-	// vertexPos = cameraRotation * vertexPos;
-
-	glm::vec3 cameraToVertex = vertexPosition - camera.position;
-	glm::vec3 cameraToVertexRotated = cameraToVertex * camera.orientation;
-	vertexPosition = cameraToVertexRotated;
+	// updadte vertex position based on camera transformations
+	vertexPosition = (vertexPosition - camera.position) * camera.orientation;
 
 	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
 	// also about boxes going through floor - is it ok??
@@ -312,7 +306,7 @@ Colour mirror(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength
 	return colour;
 }
 
-Colour phongMirror(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
+Colour mirrorPhong(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -385,8 +379,8 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 				case MIRROR:
 					colour = mirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
-				case PHONG_MIRROR:
-					colour = phongMirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+				case MIRROR_PHONG:
+					colour = mirrorPhong(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 				default:
 					colour = ambientLightOnly(ambientLightStrength, intersection);
@@ -410,8 +404,8 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 				case MIRROR:
 					colour = mirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
-				case PHONG_MIRROR:
-					colour = phongMirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+				case MIRROR_PHONG:
+					colour = mirrorPhong(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 			}
 		}
@@ -420,45 +414,27 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 	return {0, 0, 0};
 }
 
-void raytrace(DrawingWindow &window, std::vector<Model> &scene, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
+void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera& camera) {
 	// Light Data
 	glm::vec3 lightPos = {-0.3, 0.9, 0.8};
 	float lightStrength = 10;
 	float ambientLightStrength = 0.3;
-	// Transform Light Position
-	glm::vec4 lightPos4{lightPos, 1};
-	lightPos4 = modRot * lightPos4;
-	lightPos4 -= camVec;
-	lightPos4 = camRot * lightPos4;
-	lightPos = {lightPos4.x, lightPos4.y, lightPos4.z};
-
-	// transform triangle vertices
-	// note: copying here instead of using reference as we do not want to transform the actual triangles that are passed into this function
 	// FIXME: WE DONT TRANSFORM NORMALS!!!!!!
-	// std::vector<ModelTriangle> transformedTriangles;
-	// for (ModelTriangle triangle : triangles) {
-	// 	for (glm::vec3 &vertex : triangle.vertices) {
-	// 		glm::vec4 vertex4{vertex, 1};
-	// 		vertex4 = modRot * vertex4;
-	// 		vertex4 -= camVec;
-	// 		vertex4 = camRot * vertex4;
-	// 		vertex = {vertex4.x, vertex4.y, vertex4.z};
-	// 	}
-	// 	transformedTriangles.push_back(triangle);
-	// }
+	// TODO: help for perspective-correct textures: jacob pro computer graphics RasterisedRenderer.cpp 
 
-	glm::vec3 origin = {0,0,0};
-	// for (int h = 0; h < window.height; h++) {
-	// 	for (int w = 0; w < window.width; w++) {
-	// 		// (de)scale by 100
-	// 		float worldX = (w - window.width / 2.0f) / 100;
-	// 		float worldY = -(h - window.height / 2.0f) / 100;
-	// 		glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - origin);
+	for (int h = 0; h < window.height; h++) {
+		for (int w = 0; w < window.width; w++) {
+			// (de)scale by 100
+			float worldX = (w - window.width / 2.0f) / 100;
+			float worldY = -(h - window.height / 2.0f) / 100;
+			glm::vec3 rayDestination = {worldX, worldY, -camera.focalLength};
+			// apply camera rotation
+			glm::vec3 rayDir = glm::normalize(rayDestination) * glm::inverse(camera.orientation);
 
-	// 		Colour colour = castRay(transformedTriangles, origin, rayDir, lightPos, lightStrength, ambientLightStrength);
-	// 		draw(window, w, h, colour);
-	// 	}
-	// }
+			Colour colour = castRay(scene, camera.position, rayDir, lightPos, lightStrength, ambientLightStrength);
+			draw(window, w, h, colour);
+		}
+	}
 }
 
 void calculateFaceNormals(std::vector<ModelTriangle> &triangles) {
@@ -498,7 +474,7 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 void loadModel(std::vector<Model>& scene, std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows){
 	Model model{readObjFile(objFile, mtlFile, scale), name};
 	setNameTypeAndShadows(model.triangles, name, type, shadows);
-	if (type == PHONG_MIRROR || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG)
+	if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG)
 		calculateVertexNormals(model.triangles);
 	else
 		calculateFaceNormals(model.triangles);
@@ -506,7 +482,7 @@ void loadModel(std::vector<Model>& scene, std::string objFile, std::string mtlFi
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = true;
+	bool rasterising = false;
 	bool raytracedOnce = false;
 	float focalLength = 4;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -515,13 +491,13 @@ int main(int argc, char *argv[]) {
 	// load models
 	std::vector<Model> scene;
 	loadModel(scene, "red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
-	loadModel(scene, "blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", MIRROR, true);
+	loadModel(scene, "blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true);
 	loadModel(scene, "left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
 	loadModel(scene, "right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
 	loadModel(scene, "back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
 	loadModel(scene, "ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
-	loadModel(scene, "floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
-	loadModel(scene, "sphere.obj", "", 0.35, "sphere", SMOOTH_PHONG, true);
+	loadModel(scene, "floor.obj", "cornell-box.mtl", 0.35, "floor", MIRROR, true);
+	loadModel(scene, "sphere.obj", "", 0.35, "sphere", MIRROR_PHONG, true);
 
 	glm::vec4 camVec = Translate(0, 0, 3) * glm::vec4(0, 0, 0, 1);
 	glm::mat4 camRot{1};
@@ -540,7 +516,7 @@ int main(int argc, char *argv[]) {
 		} else if (!raytracedOnce) {
 			window.clearPixels();
 			std::cout << "starting raytracing\n";
-			raytrace(window, scene, camVec, camRot, modRot, focalLength);
+			raytrace(window, scene, camera);
 			raytracedOnce = true;
 			std::cout << "finished raytracing\n";
 		}
