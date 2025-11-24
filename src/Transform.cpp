@@ -51,7 +51,3 @@ glm::mat3 Rotate3(float xDegrees, float yDegrees, float zDegrees) {
 	}
 	return x * y * z;
 }
-
-glm::mat3 Scale3(float x, float y, float z) {
-	return {x, 0, 0, 0, y, 0, 0, 0, z};
-}

@@ -3,6 +3,7 @@
 #include "ModelTriangle.h"
 #include "Transform.hpp"
 #include "ObjReader.hpp"
+#include <glm/glm.hpp>
 #include <vector>
 #include <map>
 
@@ -25,7 +26,15 @@ public:
     Model(){}
     Model(std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows);
 
+    void translate(float x, float y, float z);
+    void rotate(float xDegrees, float yDegrees, float zDegrees);
+    void scale(float x, float y, float z);
+    // void applyTransformation();
+
 private:
+    // glm::vec3 translation {0};
+    // glm::vec3 rotation {0};
+    // glm::vec3 scaling {1};
     void calculateFaceNormals();
     void calculateVertexNormals();
 };
