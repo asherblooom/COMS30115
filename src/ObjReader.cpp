@@ -32,8 +32,11 @@ std::map<std::string, Colour> readMtlFile(std::string filename) {
 
 std::vector<ModelTriangle> readObjFile(std::string objFile, std::string mtlFile, float scale) {
 	std::map<std::string, Colour> palette;
-	if (mtlFile != "")
+	objFile = "models/" + objFile;
+	if (mtlFile != ""){
+		mtlFile = "models/" + mtlFile;
 		palette = readMtlFile(mtlFile);
+	}
 
 	std::vector<ModelTriangle> triangles;
 	std::vector<glm::vec3> tempVertices;
