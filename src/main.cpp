@@ -3,17 +3,17 @@
 #include <Colour.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
+#include <ModelTriangle.h>
+#include <RayTriangleIntersection.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <map>
 #include "Draw.hpp"
-#include "ModelTriangle.h"
+#include "Model.hpp"
 #include "ObjReader.hpp"
-#include "RayTriangleIntersection.h"
 #include "Transform.hpp"
-#include "glm/detail/func_geometric.hpp"
 
-Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName = "", int depth = 0);
+Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName = "", int depth = 0);
 
 // vec3 comparator so I can use as key in map
 struct vec3Compare {
@@ -24,66 +24,50 @@ struct vec3Compare {
 	}
 };
 
-CanvasPoint getCanvasIntersectionPoint(glm::vec4 &cameraPosition, glm::mat4 &cameraRotation, glm::mat4 &modelRotation, glm::vec3 &vertexPosition, float focalLength) {
-	glm::vec4 vertexPos{vertexPosition, 1};
-
-	vertexPos = modelRotation * vertexPos;
-	vertexPos -= cameraPosition;
-	vertexPos = cameraRotation * vertexPos;
-
-	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
-	// also about boxes going through floor - is it ok??
-	vertexPos.x *= 100;
-	// same reason as below for negative sign
-	vertexPos.y *= -100;
-	// blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
-	vertexPos.z *= -1;
-	return {(vertexPos.x * focalLength) / vertexPos.z + WIDTH / 2.0f, (vertexPos.y * focalLength) / vertexPos.z + HEIGHT / 2.0f, vertexPos.z};
-}
-
-CanvasTriangle getCanvasIntersectionTriangle(glm::vec4 &cameraPosition, glm::mat4 &cameraRotation, glm::mat4 &modelRotation, ModelTriangle &triangle, float focalLength) {
-	CanvasPoint v0 = getCanvasIntersectionPoint(cameraPosition, cameraRotation, modelRotation, triangle.vertices[0], focalLength);
-	CanvasPoint v1 = getCanvasIntersectionPoint(cameraPosition, cameraRotation, modelRotation, triangle.vertices[1], focalLength);
-	CanvasPoint v2 = getCanvasIntersectionPoint(cameraPosition, cameraRotation, modelRotation, triangle.vertices[2], focalLength);
-	return {v0, v1, v2};
-}
-
-void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, bool &rasterising, bool &raytracedOnce) {
+void handleEvent(SDL_Event event, DrawingWindow &window, Camera& camera, bool &rasterising, bool &raytracedOnce) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT)
-			camVec = Translate(0.25, 0, 0) * camVec;
+			camera.translate(0.25, 0, 0);
 		if (event.key.keysym.sym == SDLK_RIGHT)
-			camVec = Translate(-0.25, 0, 0) * camVec;
+			camera.translate(-0.25, 0, 0);
 		if (event.key.keysym.sym == SDLK_UP)
-			camVec = Translate(0, -0.25, 0) * camVec;
+			camera.translate(0, -0.25, 0);
 		if (event.key.keysym.sym == SDLK_DOWN)
-			camVec = Translate(0, 0.25, 0) * camVec;
+			camera.translate(0, 0.25, 0);
 		if (event.key.keysym.sym == SDLK_f)
-			camVec = Translate(0, 0, -0.25) * camVec;
+			camera.translate(0, 0, -0.25);
 		if (event.key.keysym.sym == SDLK_b)
-			camVec = Translate(0, 0, 0.25) * camVec;
+			camera.translate(0, 0, 0.25);
 		// cam rot
 		if (event.key.keysym.sym == SDLK_w)
-			camRot = Rotate(1, 0, 0) * camRot;
+			camera.rotate(-1, 0, 0);
 		if (event.key.keysym.sym == SDLK_s)
-			camRot = Rotate(-1, 0, 0) * camRot;
+			camera.rotate(1, 0, 0);
 		if (event.key.keysym.sym == SDLK_a)
-			camRot = Rotate(0, -1, 0) * camRot;
+			camera.rotate(0, -1, 0);
 		if (event.key.keysym.sym == SDLK_d)
-			camRot = Rotate(0, 1, 0) * camRot;
+			camera.rotate(0, 1, 0);
 		if (event.key.keysym.sym == SDLK_o)
-			camRot = Rotate(0, 0, 1) * camRot;
+			camera.rotate(0, 0, 1);
 		if (event.key.keysym.sym == SDLK_p)
-			camRot = Rotate(0, 0, -1) * camRot;
+			camera.rotate(0, 0, -1);
 		// mod rot
-		if (event.key.keysym.sym == SDLK_l)
-			modRot = Rotate(0, -2, 0) * modRot;
-		if (event.key.keysym.sym == SDLK_h)
-			modRot = Rotate(0, 2, 0) * modRot;
-		if (event.key.keysym.sym == SDLK_k)
-			modRot = Rotate(2, 0, 0) * modRot;
-		if (event.key.keysym.sym == SDLK_j)
-			modRot = Rotate(-2, 0, 0) * modRot;
+		if (event.key.keysym.sym == SDLK_l){
+			camera.rotatePosition(0, -2, 0);
+			camera.lookat(0, 0, 0);
+		}
+		if (event.key.keysym.sym == SDLK_h){
+			camera.rotatePosition(0, 2, 0);
+			camera.lookat(0, 0, 0);
+		}
+		if (event.key.keysym.sym == SDLK_k){
+			camera.rotatePosition(2, 0, 0);
+			camera.lookat(0, 0, 0);
+		}
+		if (event.key.keysym.sym == SDLK_j){
+			camera.rotatePosition(-2, 0, 0);
+			camera.lookat(0, 0, 0);
+		}
 		if (event.key.keysym.sym == SDLK_r) {
 			if (rasterising) {
 				rasterising = false;
@@ -97,19 +81,50 @@ void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec4 &camVec, glm:
 	}
 }
 
-void rasterise(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
+CanvasPoint getCanvasIntersectionPoint(Camera& camera, glm::vec3 vertexPosition) {
+	// glm::vec4 vertexPos{vertexPosition, 1};
+	// vertexPos = modelRotation * vertexPos;
+	// vertexPos -= cameraPosition;
+	// vertexPos = cameraRotation * vertexPos;
+
+	glm::vec3 cameraToVertex = vertexPosition - camera.position;
+	glm::vec3 cameraToVertexRotated = cameraToVertex * camera.orientation;
+	vertexPosition = cameraToVertexRotated;
+
+	// FIXME: ask TA's about scaling model and funny behaviour when scale = 100, also about black lines appearing when rotating etc
+	// also about boxes going through floor - is it ok??
+	vertexPosition.x *= 100;
+	// same reason as below for negative sign
+	vertexPosition.y *= -100;
+	// blue box has smaller z coord than red box, so need to flip (works because coords are relative to origin (middle) of object)
+	vertexPosition.z *= -1;
+	return {(vertexPosition.x * camera.focalLength) / vertexPosition.z + WIDTH / 2.0f, (vertexPosition.y * camera.focalLength) / vertexPosition.z + HEIGHT / 2.0f, vertexPosition.z};
+}
+
+CanvasTriangle getCanvasIntersectionTriangle(Camera& camera, ModelTriangle &triangle) {
+	CanvasPoint v0 = getCanvasIntersectionPoint(camera, triangle.vertices[0]);
+	CanvasPoint v1 = getCanvasIntersectionPoint(camera, triangle.vertices[1]);
+	CanvasPoint v2 = getCanvasIntersectionPoint(camera, triangle.vertices[2]);
+	return {v0, v1, v2};
+}
+
+void rasterise(DrawingWindow &window, std::vector<Model> &scene, Camera& camera) {
 	// reset depth buffer
 	std::vector<float> depthBuffer((window.width * window.height), 0);
-	for (ModelTriangle &triangle : triangles) {
-		bool draw = true;
-		CanvasTriangle canvasTri = getCanvasIntersectionTriangle(camVec, camRot, modRot, triangle, focalLength);
-		for (CanvasPoint &vertexPos : canvasTri.vertices)
-			if (vertexPos.x >= WIDTH || vertexPos.x < 0 || vertexPos.y >= HEIGHT || vertexPos.y < 0) draw = false;
-		if (draw) drawFilledTriangle(window, depthBuffer, canvasTri, triangle.colour);
+	for (Model& model : scene){
+		for (ModelTriangle &triangle : model.triangles) {
+			bool draw = true;
+			// transform camera????
+			CanvasTriangle canvasTri = getCanvasIntersectionTriangle(camera, triangle);
+			// dodgy culling
+			for (CanvasPoint &vertexPos : canvasTri.vertices)
+				if (vertexPos.x >= WIDTH || vertexPos.x < 0 || vertexPos.y >= HEIGHT || vertexPos.y < 0) draw = false;
+			if (draw) drawFilledTriangle(window, depthBuffer, canvasTri, triangle.colour);
+		}
 	}
 }
 
-bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, glm::vec3 intersectionPoint, std::string originObjName) {
+bool calculateShadows(std::vector<Model>& scene, glm::vec3 lightPos, glm::vec3 intersectionPoint, std::string originObjName) {
 	glm::vec3 shadowRayDir = lightPos - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
@@ -120,24 +135,26 @@ bool calculateShadows(std::vector<ModelTriangle> triangles, glm::vec3 lightPos, 
 	float minT = distToLight;
 	ModelTriangle hitTri;
 
-	for (ModelTriangle &triangle : triangles) {
-		if (triangle.objName == originObjName) continue; // don't want to hit ourselves
-		glm::vec3 &v0 = triangle.vertices[0];
-		glm::vec3 &v1 = triangle.vertices[1];
-		glm::vec3 &v2 = triangle.vertices[2];
+	for (Model& model : scene){
+		for (ModelTriangle &triangle : model.triangles) {
+			if (triangle.objName == originObjName) continue; // don't want to hit ourselves
+			glm::vec3 &v0 = triangle.vertices[0];
+			glm::vec3 &v1 = triangle.vertices[1];
+			glm::vec3 &v2 = triangle.vertices[2];
 
-		glm::vec3 e0 = v1 - v0;
-		glm::vec3 e1 = v2 - v0;
-		glm::vec3 tuv = glm::inverse(glm::mat3(-shadowRayDir, e0, e1)) * (intersectionPoint - v0);
-		float t = tuv.x;
-		float u = tuv.y;
-		float v = tuv.z;
-		// t > 0.001 prevents shadow achne
-		if (t >= 0.001 && u > 0 && v > 0 && u + v < 1) {
-			// we hit a triangle
-			if (t < minT) {
-				minT = t;
-				hitTri = triangle;
+			glm::vec3 e0 = v1 - v0;
+			glm::vec3 e1 = v2 - v0;
+			glm::vec3 tuv = glm::inverse(glm::mat3(-shadowRayDir, e0, e1)) * (intersectionPoint - v0);
+			float t = tuv.x;
+			float u = tuv.y;
+			float v = tuv.z;
+			// t > 0.001 prevents shadow achne
+			if (t >= 0.001 && u > 0 && v > 0 && u + v < 1) {
+				// we hit a triangle
+				if (t < minT) {
+					minT = t;
+					hitTri = triangle;
+				}
 			}
 		}
 	}
@@ -268,12 +285,12 @@ Colour phongShading(glm::vec3 lightPos, float lightStrength, float ambientLightS
 	return colour;
 }
 
-Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
+Colour mirror(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersection.intersectedTriangle.normal * glm::dot(rayDir, intersection.intersectedTriangle.normal));
-		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
+		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, intersection.intersectedTriangle.objName, depth);
 	}
 	if (!inShadow){
 		// calculate specular highlight
@@ -295,7 +312,7 @@ Colour mirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float l
 	return colour;
 }
 
-Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
+Colour phongMirror(std::vector<Model> &scene, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -305,7 +322,7 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersectionNormal * glm::dot(rayDir, intersectionNormal));
-		colour = castRay(triangles, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
+		colour = castRay(scene, intersection.intersectionPoint, reflection, lightPos, lightStrength, ambientLightStrength, triangle.objName, depth);
 	}
 	if (!inShadow){
 		// calculate specular highlight
@@ -327,32 +344,34 @@ Colour phongMirror(std::vector<ModelTriangle> &triangles, glm::vec3 lightPos, fl
 	return colour;
 }
 
-Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName, int depth) {
+Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, glm::vec3 lightPos, float lightStrength, float ambientLightStrength, std::string originObjName, int depth) {
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
 
-	for (int i = 0; i < triangles.size(); i++) {
-		ModelTriangle &triangle = triangles.at(i);
-		if (depth > 0 && triangle.objName == originObjName) continue;  // don't want to hit ourselves (for mirrors etc.)
-		glm::vec3 &v0 = triangle.vertices[0];
-		glm::vec3 &v1 = triangle.vertices[1];
-		glm::vec3 &v2 = triangle.vertices[2];
+	for (Model& model : scene){
+		for (int i = 0; i < model.triangles.size(); i++) {
+			ModelTriangle &triangle = model.triangles.at(i);
+			if (depth > 0 && triangle.objName == originObjName) continue;  // don't want to hit ourselves (for mirrors etc.)
+			glm::vec3 &v0 = triangle.vertices[0];
+			glm::vec3 &v1 = triangle.vertices[1];
+			glm::vec3 &v2 = triangle.vertices[2];
 
-		glm::vec3 e0 = v1 - v0;
-		glm::vec3 e1 = v2 - v0;
-		glm::vec3 tuv = glm::inverse(glm::mat3(-direction, e0, e1)) * (origin - v0);
-		float t = tuv.x;
-		float u = tuv.y;
-		float v = tuv.z;
-		if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
-			// we hit this triangle
-			if (t < tSmallest) {
-				tSmallest = t;
-				intersection.intersectedTriangle = triangle;
-				intersection.intersectionPoint = v0 + e0 * u + e1 * v;
-				intersection.distanceFromCamera = t;
-				intersection.u = u;
-				intersection.v = v;
+			glm::vec3 e0 = v1 - v0;
+			glm::vec3 e1 = v2 - v0;
+			glm::vec3 tuv = glm::inverse(glm::mat3(-direction, e0, e1)) * (origin - v0);
+			float t = tuv.x;
+			float u = tuv.y;
+			float v = tuv.z;
+			if (t >= 0 && u > 0 && v > 0 && u + v < 1) {
+				// we hit this triangle
+				if (t < tSmallest) {
+					tSmallest = t;
+					intersection.intersectedTriangle = triangle;
+					intersection.intersectionPoint = v0 + e0 * u + e1 * v;
+					intersection.distanceFromCamera = t;
+					intersection.u = u;
+					intersection.v = v;
+				}
 			}
 		}
 	}
@@ -360,14 +379,14 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 15;
-		bool inShadow = calculateShadows(triangles, lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.objName);
+		bool inShadow = calculateShadows(scene, lightPos, intersection.intersectionPoint, intersection.intersectedTriangle.objName);
 		if (inShadow) {
 			switch (intersection.intersectedTriangle.type){
 				case MIRROR:
-					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					colour = mirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 				case PHONG_MIRROR:
-					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					colour = phongMirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 				default:
 					colour = ambientLightOnly(ambientLightStrength, intersection);
@@ -389,10 +408,10 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 					colour = phongShading(lightPos, lightStrength, ambientLightStrength, direction, intersection);
 					break;
 				case MIRROR:
-					colour = mirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					colour = mirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 				case PHONG_MIRROR:
-					colour = phongMirror(triangles, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
+					colour = phongMirror(scene, lightPos, lightStrength, ambientLightStrength, direction, intersection, depth, maxDepth, inShadow);
 					break;
 			}
 		}
@@ -401,7 +420,7 @@ Colour castRay(std::vector<ModelTriangle> &triangles, glm::vec3 origin, glm::vec
 	return {0, 0, 0};
 }
 
-void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
+void raytrace(DrawingWindow &window, std::vector<Model> &scene, glm::vec4 &camVec, glm::mat4 &camRot, glm::mat4 &modRot, float focalLength) {
 	// Light Data
 	glm::vec3 lightPos = {-0.3, 0.9, 0.8};
 	float lightStrength = 10;
@@ -416,30 +435,30 @@ void raytrace(DrawingWindow &window, std::vector<ModelTriangle> &triangles, glm:
 	// transform triangle vertices
 	// note: copying here instead of using reference as we do not want to transform the actual triangles that are passed into this function
 	// FIXME: WE DONT TRANSFORM NORMALS!!!!!!
-	std::vector<ModelTriangle> transformedTriangles;
-	for (ModelTriangle triangle : triangles) {
-		for (glm::vec3 &vertex : triangle.vertices) {
-			glm::vec4 vertex4{vertex, 1};
-			vertex4 = modRot * vertex4;
-			vertex4 -= camVec;
-			vertex4 = camRot * vertex4;
-			vertex = {vertex4.x, vertex4.y, vertex4.z};
-		}
-		transformedTriangles.push_back(triangle);
-	}
+	// std::vector<ModelTriangle> transformedTriangles;
+	// for (ModelTriangle triangle : triangles) {
+	// 	for (glm::vec3 &vertex : triangle.vertices) {
+	// 		glm::vec4 vertex4{vertex, 1};
+	// 		vertex4 = modRot * vertex4;
+	// 		vertex4 -= camVec;
+	// 		vertex4 = camRot * vertex4;
+	// 		vertex = {vertex4.x, vertex4.y, vertex4.z};
+	// 	}
+	// 	transformedTriangles.push_back(triangle);
+	// }
 
 	glm::vec3 origin = {0,0,0};
-	for (int h = 0; h < window.height; h++) {
-		for (int w = 0; w < window.width; w++) {
-			// (de)scale by 100
-			float worldX = (w - window.width / 2.0f) / 100;
-			float worldY = -(h - window.height / 2.0f) / 100;
-			glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - origin);
+	// for (int h = 0; h < window.height; h++) {
+	// 	for (int w = 0; w < window.width; w++) {
+	// 		// (de)scale by 100
+	// 		float worldX = (w - window.width / 2.0f) / 100;
+	// 		float worldY = -(h - window.height / 2.0f) / 100;
+	// 		glm::vec3 rayDir = glm::normalize(glm::vec3{worldX, worldY, -focalLength} - origin);
 
-			Colour colour = castRay(transformedTriangles, origin, rayDir, lightPos, lightStrength, ambientLightStrength);
-			draw(window, w, h, colour);
-		}
-	}
+	// 		Colour colour = castRay(transformedTriangles, origin, rayDir, lightPos, lightStrength, ambientLightStrength);
+	// 		draw(window, w, h, colour);
+	// 	}
+	// }
 }
 
 void calculateFaceNormals(std::vector<ModelTriangle> &triangles) {
@@ -476,14 +495,14 @@ void setNameTypeAndShadows(std::vector<ModelTriangle> &triangles, std::string na
 	}
 }
 
-void loadModel(std::vector<ModelTriangle>& scene, std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows){
-	std::vector<ModelTriangle> triangles = readObjFile(objFile, mtlFile, scale);
-	setNameTypeAndShadows(triangles, name, type, shadows);
+void loadModel(std::vector<Model>& scene, std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows){
+	Model model{readObjFile(objFile, mtlFile, scale), name};
+	setNameTypeAndShadows(model.triangles, name, type, shadows);
 	if (type == PHONG_MIRROR || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG)
-		calculateVertexNormals(triangles);
+		calculateVertexNormals(model.triangles);
 	else
-		calculateFaceNormals(triangles);
-	scene.insert(scene.end(), std::make_move_iterator(triangles.begin()), std::make_move_iterator(triangles.end()));
+		calculateFaceNormals(model.triangles);
+	scene.emplace_back(model);
 }
 
 int main(int argc, char *argv[]) {
@@ -494,7 +513,7 @@ int main(int argc, char *argv[]) {
 	SDL_Event event;
 
 	// load models
-	std::vector<ModelTriangle> scene;
+	std::vector<Model> scene;
 	loadModel(scene, "red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
 	loadModel(scene, "blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", MIRROR, true);
 	loadModel(scene, "left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
@@ -509,10 +528,15 @@ int main(int argc, char *argv[]) {
 	glm::mat4 modRot{1};
 	modRot = Rotate(0, 4, 0) * modRot;
 
+
+	Camera camera {focalLength};
+	camera.translate(0, 0, 3);
+	// camera.rotate(10, 0, 0);
+
 	while (true) {
 		if (rasterising) {
 			window.clearPixels();
-			rasterise(window, scene, camVec, camRot, modRot, focalLength);
+			rasterise(window, scene, camera);
 		} else if (!raytracedOnce) {
 			window.clearPixels();
 			std::cout << "starting raytracing\n";
@@ -521,7 +545,7 @@ int main(int argc, char *argv[]) {
 			std::cout << "finished raytracing\n";
 		}
 		// We MUST poll for events - otherwise the window will freeze !
-		if (window.pollForInputEvents(event)) handleEvent(event, window, camVec, camRot, modRot, rasterising, raytracedOnce);
+		if (window.pollForInputEvents(event)) handleEvent(event, window, camera, rasterising, raytracedOnce);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
