@@ -38,42 +38,43 @@ void Model::calculateVertexNormals(){
 void Model::translate(float x, float y, float z){
     glm::vec3 translation {x, y, z};
     for (ModelTriangle& triangle : triangles){
-        triangle.normal += translation;
+        // FIXME: do we need to transform normals here??
+        // triangle.normal = translation;
         triangle.vertices[0] += translation;
         triangle.vertices[1] += translation;
         triangle.vertices[2] += translation;
-        if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG){
-            triangle.vertexNormals[0] += translation;
-            triangle.vertexNormals[1] += translation;
-            triangle.vertexNormals[2] += translation;
-        }
+        // if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG){
+        //     triangle.vertexNormals[0] += translation;
+        //     triangle.vertexNormals[1] += translation;
+        //     triangle.vertexNormals[2] += translation;
+        // }
     }
 }
 void Model::rotate(float xDegrees, float yDegrees, float zDegrees){
     for (ModelTriangle& triangle : triangles){
-        triangle.normal = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.normal;
+        triangle.normal = glm::normalize(Rotate3(xDegrees, yDegrees, zDegrees) * triangle.normal);
         triangle.vertices[0] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertices[0];
         triangle.vertices[1] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertices[1];
         triangle.vertices[2] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertices[2];
         if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG){
-            triangle.vertexNormals[0] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[0];
-            triangle.vertexNormals[1] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[1];
-            triangle.vertexNormals[2] = Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[2];
+            triangle.vertexNormals[0] = glm::normalize(Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[0]);
+            triangle.vertexNormals[1] = glm::normalize(Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[1]);
+            triangle.vertexNormals[2] = glm::normalize(Rotate3(xDegrees, yDegrees, zDegrees) * triangle.vertexNormals[2]);
         }
     }
 }
 void Model::scale(float x, float y, float z){
     glm::vec3 scaling {x, y, z};
     for (ModelTriangle& triangle : triangles){
-        triangle.normal *= scaling;
+        // triangle.normal *= scaling;
         triangle.vertices[0] *= scaling;
         triangle.vertices[1] *= scaling;
         triangle.vertices[2] *= scaling;
-        if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG){
-            triangle.vertexNormals[0] *= scaling;
-            triangle.vertexNormals[1] *= scaling;
-            triangle.vertexNormals[2] *= scaling;
-        }
+        // if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG){
+        //     triangle.vertexNormals[0] *= scaling;
+        //     triangle.vertexNormals[1] *= scaling;
+        //     triangle.vertexNormals[2] *= scaling;
+        // }
     }
 }
 // void Model::translate(float x, float y, float z){

@@ -12,6 +12,7 @@ enum TriangleType {
 	SMOOTH_PHONG,
 	MIRROR,
 	MIRROR_PHONG,
+	GLASS,
 };
 
 struct ModelTriangle {

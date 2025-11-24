@@ -324,6 +324,76 @@ Colour mirrorPhong(std::vector<Model> &scene, Light& light, glm::vec3 rayDir, Ra
 	return colour;
 }
 
+glm::vec3 refractRay(glm::vec3 rayDir, glm::vec3 intersectionNormal, float refractionIndex){
+	float cosi = std::min(-1.0f, std::max(1.0f, glm::dot(intersectionNormal, rayDir)));  // clamp the dot product at (-1, 1)
+	float rIndexi, rIndext; // rIndexi is the index of refraction of the medium the ray is in before entering the second medium
+	if (cosi < 0){
+		// entering refractive object
+		cosi = -cosi;  // cos(theta_i) must be +ve
+		rIndexi = 1;
+		rIndext = refractionIndex;
+	} else {
+		// exiting refractive object
+		intersectionNormal = -intersectionNormal;  // need to reverse normal direction
+		rIndexi = refractionIndex;
+		rIndext = 1;
+	}
+	float relativeRIndex = rIndexi / rIndext;
+	float cost = 1 - std::pow(relativeRIndex, 2) * (1 - cosi * cosi);
+    if (cost < 0)
+        // total internal reflection. There is no refraction in this case
+        return glm::vec3{0};
+    else
+		return relativeRIndex * rayDir + (relativeRIndex * cosi - std::sqrtf(cost)) * intersectionNormal;
+}
+float fresnel(glm::vec3 rayDir, glm::vec3 intersectionNormal, float refractionIndex) {
+	float cosi = std::min(-1.0f, std::max(1.0f, glm::dot(intersectionNormal, rayDir)));  // clamp the dot product at (-1, 1)
+	float rIndexi, rIndext;
+	if (cosi < 0){
+		cosi = -cosi;  // cos(theta_i) must be +ve
+		rIndexi = 1;
+		rIndext = refractionIndex;
+	} else {
+		rIndexi = refractionIndex;
+		rIndext = 1;
+	}
+	float relativeRIndex = rIndexi / rIndext;
+	float cost = 1 - std::pow(relativeRIndex, 2) * (1 - cosi * cosi);
+    if (cost < 0) {
+		// total internal reflection
+        return 1;
+    }
+    else {
+        float Rs = ((rIndext * cosi) - (rIndext * cost)) / ((rIndext * cosi) + (rIndexi * cost));
+        float Rp = ((rIndexi * cosi) - (rIndext * cost)) / ((rIndexi * cosi) + (rIndext * cost));
+        return (Rs * Rs + Rp * Rp) / 2;
+    }
+    // As a consequence of the conservation of energy, the transmittance is given by:
+    // kt = 1 - kr;
+}
+
+Colour transparentShading(glm::vec3 rayDir, RayTriangleIntersection& intersection, float refractionIndex){
+	glm::vec3 refractionColor {0};
+	glm::vec3 normal = intersection.intersectedTriangle.normal;
+	// compute fresnel
+	float kr = fresnel(rayDir, normal, refractionIndex);
+	bool outside = glm::dot(normal, rayDir) < 0;
+	glm::vec3 bias = options.bias * normal;
+	// compute refraction if it is not a case of total internal reflection
+	if (kr < 1) {
+		glm::vec3 refractionDir = glm::normalize(refractRay(rayDir, normal, refractionIndex));
+		glm::vec3 refractionRayOrig = outside ? intersection.intersectionPoint - bias : intersection.intersectionPoint + bias;
+		// refractionColor = castRay(refractionRayOrig, refractionDirection, objects, lights, options, depth + 1);
+	}
+
+	glm::vec3 reflectionDir = glm::normalize(rayDir - 2.0f * normal * glm::dot(rayDir, normal));
+	glm::vec3 reflectionRayOrig = outside ? intersection.intersectionPoint + bias : intersection.intersectionPoint - bias;
+	// glm::vec3 reflectionColor = castRay(reflectionRayOrig, reflectionDirection, objects, lights, options, depth + 1);
+	
+	// mix the two
+	// hitColor += reflectionColor * kr + refractionColor * (1 - kr);
+}
+
 Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light& light, std::string originObjName, int depth) {
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
@@ -393,6 +463,9 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 					break;
 				case MIRROR_PHONG:
 					colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, inShadow);
+					break;
+				case GLASS:
+					colour = refract();
 					break;
 			}
 		}
