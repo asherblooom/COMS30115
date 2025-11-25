@@ -20,20 +20,6 @@ std::vector<T> interpolate(T from, T to, int numberOfValues) {
 	return values;
 }
 
-std::vector<float> interpolate(float from, float to, int numberOfValues) {
-	if (numberOfValues <= 1)
-		return std::vector<float>{from};
-	// TODO: ROUND HERE!?!?!
-
-	int step = (to - from) / float{numberOfValues - 1.0f};
-	std::vector<float> values;
-	for (int i = 0; i < numberOfValues; i++) {
-		values.emplace_back(from);
-		from += step;
-	}
-	return values;
-}
-
 void draw(DrawingWindow &window, float x, float y, Colour &colour) {
 	float red = colour.red;
 	float green = colour.green;
@@ -121,11 +107,11 @@ void fillFlatTriangle(DrawingWindow &window, std::vector<float> &depthBuffer,
 		rightZs = &zs1;
 	}
 	for (int y = 0; y <= yEnd - yStart; y++) {
-		int xStart = std::ceil(leftXs->at(y));
-		int xEnd = std::floor(rightXs->at(y));
+		int xStart = std::round(leftXs->at(y));
+		int xEnd = std::round(rightXs->at(y));
 		std::vector<float> horizontalZs = interpolate(1 / leftZs->at(y), 1 / rightZs->at(y), xEnd - xStart + 1);
-		for (int x = 0; x <= xEnd - xStart; x++) {
-			if (depthBuffer[WIDTH * (y + yStart) + (x + xStart)] <= horizontalZs.at(x)) {
+		for (float x = 0; x <= xEnd - xStart; x++) {
+			if (depthBuffer[WIDTH * (y + yStart) + (x + xStart)] < horizontalZs.at(x)) {
 				draw(window, x + xStart, y + yStart, colour);
 				depthBuffer[WIDTH * (y + yStart) + (x + xStart)] = horizontalZs.at(x);
 			}
