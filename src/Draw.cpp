@@ -109,7 +109,7 @@ void fillFlatTriangle(DrawingWindow &window, std::vector<float> &depthBuffer,
 	for (int y = 0; y <= yEnd - yStart; y++) {
 		int xStart = std::round(leftXs->at(y));
 		int xEnd = std::round(rightXs->at(y));
-		std::vector<float> horizontalZs = interpolate(1/leftZs->at(y), 1/rightZs->at(y), xEnd - xStart + 1);
+		std::vector<float> horizontalZs = interpolate(1 / leftZs->at(y), 1 / rightZs->at(y), xEnd - xStart + 1);
 		for (float x = 0; x <= xEnd - xStart; x++) {
 			if (depthBuffer[WIDTH * (y + yStart) + (x + xStart)] < horizontalZs.at(x)) {
 				draw(window, x + xStart, y + yStart, colour);
