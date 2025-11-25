@@ -422,8 +422,8 @@ Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 ray
 }
 
 Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth) {
-	const float BIAS = 0.0001;
-	Colour refractionColor{0, 0, 0};
+	const float BIAS = 0.01;
+	Colour refractionColour{0, 0, 0};
 
 	float u = intersection.u;
 	float v = intersection.v;
@@ -433,6 +433,7 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 
 	// compute fresnel
 	float kr = fresnel(rayDir, normal, refractionIndex);
+	// int kr = 0;
 	bool outside = glm::dot(normal, rayDir) < 0;
 	glm::vec3 biasVec = BIAS * normal;
 	// compute refraction if it is not a case of total internal reflection
@@ -441,18 +442,18 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 		if (kr < 1) {
 			glm::vec3 refractionDir = glm::normalize(refractRay(rayDir, normal, refractionIndex));
 			glm::vec3 refractionRayOrig = outside ? intersection.intersectionPoint - biasVec : intersection.intersectionPoint + biasVec;
-			refractionColor = castRay(scene, refractionRayOrig, refractionDir, light, depth, "");
+			refractionColour = castRay(scene, refractionRayOrig, refractionDir, light, depth, "");
 		}
 
 		glm::vec3 reflectionDir = glm::normalize(rayDir - 2.0f * normal * glm::dot(rayDir, normal));
 		glm::vec3 reflectionRayOrig = outside ? intersection.intersectionPoint + biasVec : intersection.intersectionPoint - biasVec;
-		Colour reflectionColor = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "");
+		Colour reflectionColour = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "");
 
 		// mix the two
 		Colour colour;
-		colour.red = reflectionColor.red * kr + refractionColor.red * (1 - kr);
-		colour.green = reflectionColor.green * kr + refractionColor.green * (1 - kr);
-		colour.blue = reflectionColor.blue * kr + refractionColor.blue * (1 - kr);
+		colour.red = reflectionColour.red * kr + refractionColour.red * (1 - kr);
+		colour.green = reflectionColour.green * kr + refractionColour.green * (1 - kr);
+		colour.blue = reflectionColour.blue * kr + refractionColour.blue * (1 - kr);
 		return colour;
 	}
 	return {0, 0, 0};
@@ -587,7 +588,7 @@ int main(int argc, char *argv[]) {
 	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
 	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
 	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
-	scene.emplace_back("sphere.obj", "", 0.35, "sphere", GLASS, false);
+	scene.emplace_back("sphere.obj", "", 0.35, "sphere", GLASS_PHONG, false);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
