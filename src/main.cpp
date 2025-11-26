@@ -108,16 +108,15 @@ void rasterise(DrawingWindow &window, std::vector<Model> &scene, Camera &camera)
 	}
 }
 
-bool calculateShadows(std::vector<Model> &scene, Light &light, glm::vec3 intersectionPoint, std::string originObjName) {
+float calculateShadows(std::vector<Model> &scene, Light &light, glm::vec3 intersectionPoint, std::string originObjName) {
 	glm::vec3 shadowRayDir = light.position - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
 	// but also so that t == distToLight (as the vector which t scales - shadowRayDir - has length 1 after normalisation)
 	shadowRayDir = glm::normalize(shadowRayDir);
 
-	bool needShadow = false;
+	float lightIntensity = 1;
 	float minT = distToLight;
-	ModelTriangle hitTri;
 
 	for (Model &model : scene) {
 		if (model.name == originObjName) continue;	// don't want to hit ourselves
@@ -137,49 +136,51 @@ bool calculateShadows(std::vector<Model> &scene, Light &light, glm::vec3 interse
 				// we hit a triangle
 				if (t < minT) {
 					minT = t;
-					needShadow = model.shadows;
+					if (model.shadows && light.type == POINT)
+						lightIntensity = 0;
+
 				}
 			}
 		}
 	}
-	return needShadow;
+	return lightIntensity;
 }
 
-Colour ambientLightOnly(float ambientLightStrength, RayTriangleIntersection &intersection) {
-	Colour colour = intersection.intersectedTriangle.colour;
-	// add ambient light
-	colour.red *= ambientLightStrength;
-	colour.green *= ambientLightStrength;
-	colour.blue *= ambientLightStrength;
-	// Cap colour at (255, 255, 255)
-	colour.red = std::min(colour.red, 255);
-	colour.green = std::min(colour.green, 255);
-	colour.blue = std::min(colour.blue, 255);
+// Colour ambientLightOnly(float ambientLightStrength, RayTriangleIntersection &intersection) {
+// 	Colour colour = intersection.intersectedTriangle.colour;
+// 	// add ambient light
+// 	colour.red *= ambientLightStrength;
+// 	colour.green *= ambientLightStrength;
+// 	colour.blue *= ambientLightStrength;
+// 	// Cap colour at (255, 255, 255)
+// 	colour.red = std::min(colour.red, 255);
+// 	colour.green = std::min(colour.green, 255);
+// 	colour.blue = std::min(colour.blue, 255);
+// 
+// 	return colour;
+// }
 
-	return colour;
-}
-
-float diffuseAmbientMultiplier(glm::vec3 lightPos, float lightStrength, float ambientLightStrength, glm::vec3 intersectionPoint, glm::vec3 normal) {
+float diffuseMultiplier(glm::vec3 lightPos, float lightStrength, glm::vec3 intersectionPoint, glm::vec3 normal) {
 	float diffuse = 0;
-	float ambient = ambientLightStrength;
 
 	float distanceTriToLight = glm::length(lightPos - intersectionPoint);
 	glm::vec3 directionTriToLight = glm::normalize(lightPos - intersectionPoint);
 	float dotProd = std::max(glm::dot(directionTriToLight, normal), 0.0f);
 	diffuse = (lightStrength * dotProd) / (4 * M_PI * distanceTriToLight);
 
-	return diffuse + ambient;
+	return diffuse;
 }
 
-Colour diffuseAmbientShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
+Colour diffuseAmbientShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float lightIntensity) {
 	Colour colour = intersection.intersectedTriangle.colour;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 	glm::vec3 intersectionPoint = intersection.intersectionPoint;
 
-	float multiplier = diffuseAmbientMultiplier(light.position, light.strength, light.ambientStrength, intersectionPoint, normal);
-	colour.red *= multiplier;
-	colour.green *= multiplier;
-	colour.blue *= multiplier;
+	float diffuse = diffuseMultiplier(light.position, light.strength, intersectionPoint, normal) * lightIntensity;
+	float diffuseAmbient = diffuse + light.ambientStrength;
+	colour.red *= diffuseAmbient;
+	colour.green *= diffuseAmbient;
+	colour.blue *= diffuseAmbient;
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -196,13 +197,13 @@ float specularMultiplier(glm::vec3 lightPos, glm::vec3 intersectionPoint, glm::v
 	return specular;
 }
 
-Colour specularShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
+Colour specularShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float lightIntensity) {
 	Colour colour = intersection.intersectedTriangle.colour;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 	glm::vec3 intersectionPoint = intersection.intersectionPoint;
 
 	// Add specular, assumes the light source is white (255, 255, 255)
-	float specular = specularMultiplier(light.position, intersectionPoint, normal, rayDir, 256);
+	float specular = specularMultiplier(light.position, intersectionPoint, normal, rayDir, 256) * lightIntensity;
 	colour.red += (255.0f * specular);
 	colour.green += (255.0f * specular);
 	colour.blue += (255.0f * specular);
@@ -214,19 +215,19 @@ Colour specularShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &
 	return colour;
 }
 
-Colour gouraudShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
+Colour gouraudShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float lightIntensity) {
 	ModelTriangle triangle = intersection.intersectedTriangle;
 	Colour colour = triangle.colour;
 	float u = intersection.u;
 	float v = intersection.v;
-	float lightv0 = diffuseAmbientMultiplier(light.position, light.strength, light.ambientStrength, triangle.vertices[0], triangle.vertexNormals[0]);
-	float lightv1 = diffuseAmbientMultiplier(light.position, light.strength, light.ambientStrength, triangle.vertices[1], triangle.vertexNormals[1]);
-	float lightv2 = diffuseAmbientMultiplier(light.position, light.strength, light.ambientStrength, triangle.vertices[2], triangle.vertexNormals[2]);
+	float lightv0 = diffuseMultiplier(light.position, light.strength, triangle.vertices[0], triangle.vertexNormals[0]) * lightIntensity + light.ambientStrength;
+	float lightv1 = diffuseMultiplier(light.position, light.strength, triangle.vertices[1], triangle.vertexNormals[1]) * lightIntensity + light.ambientStrength;
+	float lightv2 = diffuseMultiplier(light.position, light.strength, triangle.vertices[2], triangle.vertexNormals[2]) * lightIntensity + light.ambientStrength;
 	float lightPoint = (1 - u - v) * lightv0 + u * lightv1 + v * lightv2;
 
-	float specv0 = specularMultiplier(light.position, triangle.vertices[0], triangle.vertexNormals[0], rayDir, 16);
-	float specv1 = specularMultiplier(light.position, triangle.vertices[1], triangle.vertexNormals[1], rayDir, 16);
-	float specv2 = specularMultiplier(light.position, triangle.vertices[2], triangle.vertexNormals[2], rayDir, 16);
+	float specv0 = specularMultiplier(light.position, triangle.vertices[0], triangle.vertexNormals[0], rayDir, 16) * lightIntensity;
+	float specv1 = specularMultiplier(light.position, triangle.vertices[1], triangle.vertexNormals[1], rayDir, 16) * lightIntensity;
+	float specv2 = specularMultiplier(light.position, triangle.vertices[2], triangle.vertexNormals[2], rayDir, 16) * lightIntensity;
 	float specPoint = (1 - u - v) * specv0 + u * specv1 + v * specv2;
 	colour.red *= lightPoint;
 	colour.green *= lightPoint;
@@ -242,15 +243,15 @@ Colour gouraudShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &i
 	return colour;
 }
 
-Colour phongShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection) {
+Colour phongShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float lightIntensity) {
 	ModelTriangle triangle = intersection.intersectedTriangle;
 	Colour colour = triangle.colour;
 	float u = intersection.u;
 	float v = intersection.v;
 	glm::vec3 intersectionNormal = (1 - u - v) * triangle.vertexNormals[0] + u * triangle.vertexNormals[1] + v * triangle.vertexNormals[2];
 	intersectionNormal = glm::normalize(intersectionNormal);
-	float lightPoint = diffuseAmbientMultiplier(light.position, light.strength, light.ambientStrength, intersection.intersectionPoint, intersectionNormal);
-	float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, intersectionNormal, rayDir, 16);
+	float lightPoint = diffuseMultiplier(light.position, light.strength, intersection.intersectionPoint, intersectionNormal) * lightIntensity + light.ambientStrength;
+	float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, intersectionNormal, rayDir, 16) * lightIntensity;
 	colour.red *= lightPoint;
 	colour.green *= lightPoint;
 	colour.blue *= lightPoint;
@@ -265,26 +266,24 @@ Colour phongShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &int
 	return colour;
 }
 
-Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
+Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersection.intersectedTriangle.normal * glm::dot(rayDir, intersection.intersectedTriangle.normal));
 		colour = castRay(scene, intersection.intersectionPoint, reflection, light, depth, intersection.intersectedModel.name);
 	}
-	// TODO: are we sure this is correct???
-	if (!inShadow) {
-		// calculate specular highlight
-		float specular = specularMultiplier(light.position, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512);
-		colour.red += (255.0f * specular);
-		colour.green += (255.0f * specular);
-		colour.blue += (255.0f * specular);
-	}
+	// calculate specular highlight
+	float specular = specularMultiplier(light.position, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512) * lightIntensity;
+	colour.red += (255.0f * specular);
+	colour.green += (255.0f * specular);
+	colour.blue += (255.0f * specular);
+	// TODO: need this?????
+	// mirrors don't always reflect 100% of light - here we pretend they only reflect up to 80%
+	colour.red *= std::min(lightIntensity + light.ambientStrength, 0.8f);
+	colour.green *= std::min(lightIntensity + light.ambientStrength, 0.8f);
+	colour.blue *= std::min(lightIntensity + light.ambientStrength, 0.8f);
 
-	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
-	colour.red *= 0.8;
-	colour.green *= 0.8;
-	colour.blue *= 0.8;
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -293,7 +292,7 @@ Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTria
 	return colour;
 }
 
-Colour mirrorPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, bool inShadow) {
+Colour mirrorPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -305,18 +304,15 @@ Colour mirrorPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, Ra
 		glm::vec3 reflection = glm::normalize(rayDir - 2.0f * intersectionNormal * glm::dot(rayDir, intersectionNormal));
 		colour = castRay(scene, intersection.intersectionPoint, reflection, light, depth, intersection.intersectedModel.name);
 	}
-	if (!inShadow) {
-		// calculate specular highlight
-		float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, intersectionNormal, rayDir, 256);
-		colour.red += (255.0f * specPoint);
-		colour.green += (255.0f * specPoint);
-		colour.blue += (255.0f * specPoint);
-	}
-
-	// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
-	colour.red *= 0.8;
-	colour.green *= 0.8;
-	colour.blue *= 0.8;
+	// calculate specular highlight
+	float specular = specularMultiplier(light.position, intersection.intersectionPoint, intersection.intersectedTriangle.normal, rayDir, 512) * lightIntensity;
+	colour.red += (255.0f * specular);
+	colour.green += (255.0f * specular);
+	colour.blue += (255.0f * specular);
+	// mirrors don't always reflect 100% of light - here we pretend they only reflect up to 80%
+	colour.red *= std::min(lightIntensity + light.ambientStrength, 0.8f);
+	colour.green *= std::min(lightIntensity + light.ambientStrength, 0.8f);
+	colour.blue *= std::min(lightIntensity + light.ambientStrength, 0.8f);
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -345,8 +341,7 @@ float fresnel(float rIndexi, float rIndext, float cosi, float cost) {
 	}
 }
 
-// TODO: clean up transparent, fix phong, add specular highlights to phong, do caustics/shadows??? change shadow pciker section to make it nicer
-Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, bool inShadow) {
+Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
 	const float BIAS = 0.001;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 
@@ -385,14 +380,13 @@ Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 ray
 		colour.red = reflectionColour.red * kr + refractionColour.red * (1 - kr);
 		colour.green = reflectionColour.green * kr + refractionColour.green * (1 - kr);
 		colour.blue = reflectionColour.blue * kr + refractionColour.blue * (1 - kr);
-		if (!inShadow) {
-			// calculate specular highlight
-			float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, normal, rayDir, 256);
-			colour.red += (255.0f * specPoint);
-			colour.green += (255.0f * specPoint);
-			colour.blue += (255.0f * specPoint);
-		}
-		// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
+
+		// calculate specular highlight
+		float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, normal, rayDir, 256) * lightIntensity;
+		colour.red += (255.0f * specPoint);
+		colour.green += (255.0f * specPoint);
+		colour.blue += (255.0f * specPoint);
+		// glass doesn't always transmit/reflect 100% of light - here we pretend it's only 98%
 		// TODO: what should I do with this??? looks kinda cool - like it's slightly grey glass
 		colour.red *= 0.98;
 		colour.green *= 0.98;
@@ -404,11 +398,10 @@ Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 ray
 		colour.blue = std::min(colour.blue, 255);
 		return colour;
 	}
-	// TODO: this isn't correct ??
 	return {0, 0, 0};
 }
 
-Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, bool inShadow) {
+Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
 	const float BIAS = 0.01;
 	Colour refractionColour{0, 0, 0};
 
@@ -456,14 +449,12 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 		colour.green = reflectionColour.green * kr + refractionColour.green * (1 - kr);
 		colour.blue = reflectionColour.blue * kr + refractionColour.blue * (1 - kr);
 
-		if (!inShadow) {
-			// calculate specular highlight
-			float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, normal, rayDir, 256);
-			colour.red += (255.0f * specPoint);
-			colour.green += (255.0f * specPoint);
-			colour.blue += (255.0f * specPoint);
-		}
-		// mirrors don't always reflect 100% of light - here we pretend they only reflect 80%
+		// calculate specular highlight
+		float specPoint = specularMultiplier(light.position, intersection.intersectionPoint, normal, rayDir, 256) * lightIntensity;
+		colour.red += (255.0f * specPoint);
+		colour.green += (255.0f * specPoint);
+		colour.blue += (255.0f * specPoint);
+		// glass doesn't always transmit/reflect 100% of light - here we pretend it's only 98%
 		// TODO: what should I do with this??? looks kinda cool - like it's slightly grey glass
 		// colour.red *= 0.98;
 		// colour.green *= 0.98;
@@ -514,62 +505,62 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 10;
-		bool inShadow = calculateShadows(scene, light, intersection.intersectionPoint, intersection.intersectedModel.name);
-		if (inShadow) {
-			switch (intersection.intersectedModel.type) {
-				case MIRROR:
-					colour = mirror(scene, light, direction, intersection, depth, maxDepth, inShadow);
-					break;
-				case MIRROR_PHONG:
-					colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, inShadow);
-					break;
-				case GLASS: {
-					float refractionIndex = 1.5;
-					colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
-					break;
-				}
-				case GLASS_PHONG: {
-					float refractionIndex = 1.5;
-					colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
-					break;
-				}
-				default:
-					colour = ambientLightOnly(light.ambientStrength, intersection);
-					break;
-			}
-		} else {
+		float lightIntensity = calculateShadows(scene, light, intersection.intersectionPoint, intersection.intersectedModel.name);
+		// if (hasShadow) {
+		// 	switch (intersection.intersectedModel.type) {
+		// 		case MIRROR:
+		// 			colour = mirror(scene, light, direction, intersection, depth, maxDepth, inShadow);
+		// 			break;
+		// 		case MIRROR_PHONG:
+		// 			colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, inShadow);
+		// 			break;
+		// 		case GLASS: {
+		// 			float refractionIndex = 1.5;
+		// 			colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
+		// 			break;
+		// 		}
+		// 		case GLASS_PHONG: {
+		// 			float refractionIndex = 1.5;
+		// 			colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
+		// 			break;
+		// 		}
+		// 		default:
+		// 			colour = ambientLightOnly(light.ambientStrength, intersection);
+		// 			break;
+		// 	}
+		// } else {
 			switch (intersection.intersectedModel.type) {
 				case FLAT:
-					colour = diffuseAmbientShading(light, direction, intersection);
+					colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
 					break;
 				case FLAT_SPECULAR:
-					colour = diffuseAmbientShading(light, direction, intersection);
-					colour = specularShading(light, direction, intersection);
+					colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
+					colour = specularShading(light, direction, intersection, lightIntensity);
 					break;
 				case SMOOTH_GOURAUD:
-					colour = gouraudShading(light, direction, intersection);
+					colour = gouraudShading(light, direction, intersection, lightIntensity);
 					break;
 				case SMOOTH_PHONG:
-					colour = phongShading(light, direction, intersection);
+					colour = phongShading(light, direction, intersection, lightIntensity);
 					break;
 				case MIRROR:
-					colour = mirror(scene, light, direction, intersection, depth, maxDepth, inShadow);
+					colour = mirror(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
 					break;
 				case MIRROR_PHONG:
-					colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, inShadow);
+					colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
 					break;
 				case GLASS: {
 					float refractionIndex = 1.5;
-					colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
+					colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
 					break;
 				}
 				case GLASS_PHONG: {
 					float refractionIndex = 1.5;
-					colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
+					colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
 					break;
 				}
 			}
-		}
+		// }
 		return colour;
 	}
 	return {0, 0, 0};
@@ -593,7 +584,7 @@ void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera &camera, 
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = false;
+	bool rasterising = true;
 	bool raytracedOnce = false;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -601,21 +592,21 @@ int main(int argc, char *argv[]) {
 	// load models
 	std::vector<Model> scene;
 	scene.emplace_back("red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
-	scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", GLASS, false);
-	scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
+	// scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", MIRROR, true);
+	// scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
 	scene.emplace_back("right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
 	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
 	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
-	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
-	scene.emplace_back("sphere.obj", "", 0.35, "sphere", GLASS_PHONG, false);
+	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", MIRROR, true);
+	// scene.emplace_back("sphere.obj", "", 0.35, "sphere", SMOOTH_PHONG, true);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
 	camera.translate(0, 0, 3);
-	camera.rotatePosition(0, 5, 0);
-	camera.lookat(0, 0, 0);
+	// camera.rotatePosition(0, 5, 0);
+	// camera.lookat(0, 0, 0);
 
-	Light light{10, 0.3};
+	Light light{10, 0.3, POINT};
 	light.translate(0, 0, 1);
 	// light.rotate(0, 10, 0);
 
