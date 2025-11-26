@@ -154,20 +154,20 @@ float calculateShadows(std::vector<Model> &scene, glm::vec3 lightPosition, glm::
 // 	colour.red = std::min(colour.red, 255);
 // 	colour.green = std::min(colour.green, 255);
 // 	colour.blue = std::min(colour.blue, 255);
-// 
+//
 // 	return colour;
 // }
 
-float diffuseMultiplier(Light& light, glm::vec3 intersectionPoint, glm::vec3 normal) {
+float diffuseMultiplier(Light &light, glm::vec3 intersectionPoint, glm::vec3 normal) {
 	float diffuse = 0;
-	if (light.type == POINT){
+	if (light.type == POINT) {
 		float distanceTriToLight = glm::length(light.position - intersectionPoint);
 		glm::vec3 directionTriToLight = glm::normalize(light.position - intersectionPoint);
 		float dotProd = std::max(glm::dot(directionTriToLight, normal), 0.0f);
 		diffuse = (light.strength * dotProd) / (4 * M_PI * distanceTriToLight);
-	} else if (light.type == AREA){
-		for (int u = 0; u < light.uSize; u++){
-			for (int v = 0; v < light.vSize; v++){
+	} else if (light.type == AREA) {
+		for (int u = 0; u < light.uSize; u++) {
+			for (int v = 0; v < light.vSize; v++) {
 				glm::vec3 lightPosition = light.position + light.uStep * (u + std::rand() / float(RAND_MAX)) + light.vStep * (v + std::rand() / float(RAND_MAX));
 				float distanceTriToLight = glm::length(lightPosition - intersectionPoint);
 				glm::vec3 directionTriToLight = glm::normalize(lightPosition - intersectionPoint);
@@ -200,16 +200,16 @@ Colour diffuseAmbientShading(Light &light, glm::vec3 rayDir, RayTriangleIntersec
 	return colour;
 }
 
-float specularMultiplier(Light& light, glm::vec3 intersectionPoint, glm::vec3 normal, glm::vec3 rayDir, int specExponent) {
+float specularMultiplier(Light &light, glm::vec3 intersectionPoint, glm::vec3 normal, glm::vec3 rayDir, int specExponent) {
 	float specular = 0;
 	if (light.type == POINT) {
 		glm::vec3 directionTriToLight = glm::normalize(light.position - intersectionPoint);
 		glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
 		float specAngle = std::max(glm::dot(reflection, rayDir), 0.0f);
 		specular = std::pow(specAngle, specExponent);
-	} else if (light.type == AREA){
-		for (int u = 0; u < light.uSize; u++){
-			for (int v = 0; v < light.vSize; v++){
+	} else if (light.type == AREA) {
+		for (int u = 0; u < light.uSize; u++) {
+			for (int v = 0; v < light.vSize; v++) {
 				glm::vec3 lightPosition = light.position + light.uStep * (u + std::rand() / float(RAND_MAX)) + light.vStep * (v + std::rand() / float(RAND_MAX));
 				glm::vec3 directionTriToLight = glm::normalize(lightPosition - intersectionPoint);
 				glm::vec3 reflection = directionTriToLight - 2.0f * normal * glm::dot(directionTriToLight, normal);
@@ -308,7 +308,6 @@ Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTria
 	colour.red *= std::min(lightIntensity + light.ambientStrength, 0.8f);
 	colour.green *= std::min(lightIntensity + light.ambientStrength, 0.8f);
 	colour.blue *= std::min(lightIntensity + light.ambientStrength, 0.8f);
-
 
 	// Cap colour at (255, 255, 255)
 	colour.red = std::min(colour.red, 255);
@@ -451,7 +450,7 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 	float cost = 1 - std::pow(relativeRIndex, 2) * (1 - cosi * cosi);
 
 	// compute fresnel
-	float kr = fresnel(rIndexi, rIndext, cosi ,cost);
+	float kr = fresnel(rIndexi, rIndext, cosi, cost);
 	// int kr = 0;
 	bool outside = glm::dot(normal, rayDir) < 0;
 	glm::vec3 biasVec = BIAS * normal;
@@ -494,13 +493,13 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 	return {0, 0, 0};
 }
 
-float calculateLightIntensity(std::vector<Model>& scene, Light& light, RayTriangleIntersection& intersection){
+float calculateLightIntensity(std::vector<Model> &scene, Light &light, RayTriangleIntersection &intersection) {
 	float intensity = 0;
 	if (light.type == POINT)
 		intensity = calculateShadows(scene, light.position, intersection.intersectionPoint, intersection.intersectedModel.name);
-	else if (light.type == AREA){
-		for (int u = 0; u < light.uSize; u++){
-			for (int v = 0; v < light.vSize; v++){
+	else if (light.type == AREA) {
+		for (int u = 0; u < light.uSize; u++) {
+			for (int v = 0; v < light.vSize; v++) {
 				glm::vec3 lightPosition = light.position + light.uStep * (u + std::rand() / float(RAND_MAX)) + light.vStep * (v + std::rand() / float(RAND_MAX));
 				intensity += calculateShadows(scene, lightPosition, intersection.intersectionPoint, intersection.intersectedModel.name);
 			}
@@ -570,39 +569,39 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 		// 			break;
 		// 	}
 		// } else {
-			switch (intersection.intersectedModel.type) {
-				case FLAT:
-					colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
-					break;
-				case FLAT_SPECULAR:
-					colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
-					colour = specularShading(light, direction, intersection, lightIntensity);
-					break;
-				case SMOOTH_GOURAUD:
-					colour = gouraudShading(light, direction, intersection, lightIntensity);
-					break;
-				case SMOOTH_PHONG:
-					colour = phongShading(light, direction, intersection, lightIntensity);
-					break;
-				case MIRROR:
-					colour = mirror(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
-					break;
-				case MIRROR_PHONG:
-					colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
-					break;
-				case GLASS: {
-					float refractionIndex = 1.5;
-					colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
-					break;
-				}
-				case GLASS_PHONG: {
-					float refractionIndex = 1.5;
-					colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
-					break;
-				}
-				case LIGHT:
-					colour = {255, 255, 255};
+		switch (intersection.intersectedModel.type) {
+			case FLAT:
+				colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
+				break;
+			case FLAT_SPECULAR:
+				colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
+				colour = specularShading(light, direction, intersection, lightIntensity);
+				break;
+			case SMOOTH_GOURAUD:
+				colour = gouraudShading(light, direction, intersection, lightIntensity);
+				break;
+			case SMOOTH_PHONG:
+				colour = phongShading(light, direction, intersection, lightIntensity);
+				break;
+			case MIRROR:
+				colour = mirror(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
+				break;
+			case MIRROR_PHONG:
+				colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
+				break;
+			case GLASS: {
+				float refractionIndex = 1.5;
+				colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
+				break;
 			}
+			case GLASS_PHONG: {
+				float refractionIndex = 1.5;
+				colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
+				break;
+			}
+			case LIGHT:
+				colour = {255, 255, 255};
+		}
 		// }
 		return colour;
 	}
@@ -649,9 +648,9 @@ int main(int argc, char *argv[]) {
 	// camera.rotatePosition(0, 5, 0);
 	// camera.lookat(0, 0, 0);
 
-	Light light{10, 0.3, AREA, 2, 2, {0.3, 0, 0}, {0, 0.3, 0}};
-	light.translate(0, 0, 1);
-	// light.rotate(0, 10, 0);
+	Light light{10, 0.3, AREA, 2, 2, {0.3, 0, 0}, {0, 0, 0.3}};
+	light.translate(0, 0.9, 0.5);
+	light.rotate(0, 10, 0);
 	scene.emplace_back(light);
 
 	// for (Model& model : scene)
