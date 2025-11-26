@@ -3,6 +3,7 @@
 #include "ModelTriangle.h"
 #include "Transform.hpp"
 #include "ObjReader.hpp"
+#include "Light.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <map>
@@ -16,15 +17,34 @@ struct vec3Compare {
     }
 };
 
+enum ModelType {
+	FLAT,
+	FLAT_SPECULAR,
+	SMOOTH_GOURAUD,
+	SMOOTH_PHONG,
+	MIRROR,
+	MIRROR_PHONG,
+	GLASS,
+	GLASS_PHONG,
+	LIGHT,
+};
+
 class Model {
 public:
     std::vector<ModelTriangle> triangles;
     std::string name;
-    TriangleType type;
+    ModelType type;
     bool shadows;
 
     Model(){}
-    Model(std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows);
+    Model(std::string objFile, std::string mtlFile, float scale, std::string name, ModelType type, bool shadows);
+    Model(Light& light){
+        triangles.emplace_back(light.position, light.position + light.uVec, light.position + light.vVec, Colour{255, 255, 255});
+        triangles.emplace_back(light.position + light.uVec + light.vVec, light.position + light.uVec, light.position + light.vVec, Colour{255, 255, 255});
+        name = "light";
+        type = LIGHT;
+        shadows = false;
+    }
 
     void translate(float x, float y, float z);
     void rotate(float xDegrees, float yDegrees, float zDegrees);

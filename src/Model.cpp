@@ -1,7 +1,7 @@
 #include "Model.hpp"
 #include "Transform.hpp"
 
-Model::Model(std::string objFile, std::string mtlFile, float scale, std::string name, TriangleType type, bool shadows)
+Model::Model(std::string objFile, std::string mtlFile, float scale, std::string name, ModelType type, bool shadows)
     : triangles{readObjFile(objFile, mtlFile, scale)}, name{name}, type{type}, shadows{shadows} {
         if (type == MIRROR_PHONG || type == SMOOTH_GOURAUD || type == SMOOTH_PHONG || type == GLASS_PHONG)
             calculateVertexNormals();

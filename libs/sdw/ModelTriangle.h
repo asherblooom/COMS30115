@@ -5,16 +5,6 @@
 #include "Colour.h"
 #include "TexturePoint.h"
 
-enum TriangleType {
-	FLAT,
-	FLAT_SPECULAR,
-	SMOOTH_GOURAUD,
-	SMOOTH_PHONG,
-	MIRROR,
-	MIRROR_PHONG,
-	GLASS,
-	GLASS_PHONG,
-};
 
 struct ModelTriangle {
 	std::array<glm::vec3, 3> vertices{};
