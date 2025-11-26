@@ -108,8 +108,8 @@ void rasterise(DrawingWindow &window, std::vector<Model> &scene, Camera &camera)
 	}
 }
 
-float calculateShadows(std::vector<Model> &scene, Light &light, glm::vec3 intersectionPoint, std::string originObjName) {
-	glm::vec3 shadowRayDir = light.position - intersectionPoint;
+float calculateShadows(std::vector<Model> &scene, glm::vec3 lightPosition, glm::vec3 intersectionPoint, std::string originObjName) {
+	glm::vec3 shadowRayDir = lightPosition - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
 	// but also so that t == distToLight (as the vector which t scales - shadowRayDir - has length 1 after normalisation)
@@ -136,9 +136,7 @@ float calculateShadows(std::vector<Model> &scene, Light &light, glm::vec3 inters
 				// we hit a triangle
 				if (t < minT) {
 					minT = t;
-					if (model.shadows && light.type == POINT)
-						lightIntensity = 0;
-
+					if (model.shadows) lightIntensity = 0;
 				}
 			}
 		}
@@ -469,6 +467,21 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 	return {0, 0, 0};
 }
 
+float calculateLightIntensity(std::vector<Model>& scene, Light& light, RayTriangleIntersection& intersection){
+	if (light.type == POINT)
+		return calculateShadows(scene, light.position, intersection.intersectionPoint, intersection.intersectedModel.name);
+	else if (light.type == AREA){
+		float intensity = 0;
+		for (int u = 0; u < light.uSize; u++){
+			for (int v = 0; v < light.vSize; v++){
+				glm::vec3 lightPosition = light.position + light.uVec * (u + 0.5f) + light.vVec * (v + 0.5f);
+				intensity += calculateShadows(scene, lightPosition, intersection.intersectionPoint, intersection.intersectedModel.name);
+			}
+		}
+		return intensity / (light.vSize * light.uSize);
+	}
+}
+
 Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth, std::string originObjName) {
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
@@ -505,7 +518,7 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 10;
-		float lightIntensity = calculateShadows(scene, light, intersection.intersectionPoint, intersection.intersectedModel.name);
+		float lightIntensity = calculateLightIntensity(scene, light, intersection);
 		// if (hasShadow) {
 		// 	switch (intersection.intersectedModel.type) {
 		// 		case MIRROR:
@@ -584,7 +597,7 @@ void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera &camera, 
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = true;
+	bool rasterising = false;
 	bool raytracedOnce = false;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -592,12 +605,12 @@ int main(int argc, char *argv[]) {
 	// load models
 	std::vector<Model> scene;
 	scene.emplace_back("red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
-	// scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", MIRROR, true);
-	// scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
+	scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true);
+	scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
 	scene.emplace_back("right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
 	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
 	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
-	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", MIRROR, true);
+	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
 	// scene.emplace_back("sphere.obj", "", 0.35, "sphere", SMOOTH_PHONG, true);
 
 	float focalLength = 4;
@@ -606,7 +619,7 @@ int main(int argc, char *argv[]) {
 	// camera.rotatePosition(0, 5, 0);
 	// camera.lookat(0, 0, 0);
 
-	Light light{10, 0.3, POINT};
+	Light light{10, 0.3, AREA, 2, 2, {0.4, 0, 0}, {0, 0.4, 0}};
 	light.translate(0, 0, 1);
 	// light.rotate(0, 10, 0);
 
