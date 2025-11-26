@@ -472,9 +472,12 @@ float calculateLightIntensity(std::vector<Model>& scene, Light& light, RayTriang
 		return calculateShadows(scene, light.position, intersection.intersectionPoint, intersection.intersectedModel.name);
 	else if (light.type == AREA){
 		float intensity = 0;
+		glm::vec3 uStep = light.uVec / float(light.uSize);
+		glm::vec3 vStep = light.vVec / float(light.vSize);
 		for (int u = 0; u < light.uSize; u++){
 			for (int v = 0; v < light.vSize; v++){
-				glm::vec3 lightPosition = light.position + light.uVec * (u + 0.5f) + light.vVec * (v + 0.5f);
+				glm::vec3 lightPosition = light.position + uStep * (u + std::rand() / float(RAND_MAX)) + vStep * (v + std::rand() / float(RAND_MAX));
+				// std::cout << std::rand() << "   ";
 				intensity += calculateShadows(scene, lightPosition, intersection.intersectionPoint, intersection.intersectedModel.name);
 			}
 		}
@@ -619,7 +622,7 @@ int main(int argc, char *argv[]) {
 	// camera.rotatePosition(0, 5, 0);
 	// camera.lookat(0, 0, 0);
 
-	Light light{10, 0.3, AREA, 2, 2, {0.4, 0, 0}, {0, 0.4, 0}};
+	Light light{10, 0.3, AREA, 8, 8, {0.3, 0, 0}, {0, 0.3, 0}};
 	light.translate(0, 0, 1);
 	// light.rotate(0, 10, 0);
 
