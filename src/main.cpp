@@ -187,7 +187,6 @@ Colour diffuseAmbientShading(Light &light, glm::vec3 rayDir, RayTriangleIntersec
 	glm::vec3 intersectionPoint = intersection.intersectionPoint;
 
 	float diffuse = diffuseMultiplier(light, intersectionPoint, normal) * lightIntensity;
-	// std::cout << diffuse << "  ";
 	float diffuseAmbient = diffuse + light.ambientStrength;
 	colour.red *= diffuseAmbient;
 	colour.green *= diffuseAmbient;
@@ -640,7 +639,7 @@ int main(int argc, char *argv[]) {
 	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
 	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
 	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
-	// scene.emplace_back("sphere.obj", "", 0.35, "sphere", SMOOTH_PHONG, true);
+	scene.emplace_back("sphere.obj", "", 0.35, "sphere", FLAT_SPECULAR, true);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
@@ -648,13 +647,14 @@ int main(int argc, char *argv[]) {
 	// camera.rotatePosition(0, 5, 0);
 	// camera.lookat(0, 0, 0);
 
-	Light light{10, 0.3, AREA, 2, 2, {0.3, 0, 0}, {0, 0, 0.3}};
-	light.translate(0, 0.9, 0.5);
+	// Light light{10, 0.3, AREA, 2, 2, {0.3, 0, 0}, {0, 0, 0.3}};
+	Light light{10, 0.3, POINT};
+	light.translate(0.3, 0.8, 0.7);
 	light.rotate(0, 10, 0);
 	scene.emplace_back(light);
 
-	// for (Model& model : scene)
-	// 	model.rotate(0, 10, 0);
+	for (Model &model : scene)
+		model.rotate(0, 10, 0);
 
 	while (true) {
 		if (rasterising) {
