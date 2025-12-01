@@ -44,6 +44,18 @@ void Model::addTransformation(TransformationType type, float x, float y, float z
             if (parallel == 2) transformations2.push_back(Transformation{type, (x)/(seconds*fps), (y)/(seconds*fps), (z)/(seconds*fps)});
         }
     }
+    if (type >= FLAT && type <= LIGHT){
+        if (parallel == 0) transformations0.push_back(Transformation{type, 0,0,0});
+        if (parallel == 1) transformations1.push_back(Transformation{type, 0,0,0});
+        if (parallel == 2) transformations2.push_back(Transformation{type, 0,0,0});
+    }
+    if (type == WAIT){
+        for (int i = 1; i <= seconds * fps; i++){ 
+            if (parallel == 0) transformations0.push_back(Transformation{type, 0,0,0});
+            if (parallel == 1) transformations1.push_back(Transformation{type, 0,0,0});
+            if (parallel == 2) transformations2.push_back(Transformation{type, 0,0,0});
+        }
+    }
 }
 
 void Model::translate(float x, float y, float z){
