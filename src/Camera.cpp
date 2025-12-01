@@ -35,4 +35,9 @@ void Camera::addTransformation(TransformationType type, float x, float y, float 
             if (parallel == 2) transformations2.push_back(Transformation{type, 0,0,0});
         }
     }
+    if (type == SWITCH_RENDERING_METHOD){
+        if (parallel == 0) transformations0.push_back(Transformation{type, 0,0,0});
+        if (parallel == 1) transformations1.push_back(Transformation{type, 0,0,0});
+        if (parallel == 2) transformations2.push_back(Transformation{type, 0,0,0});
+    }
 }

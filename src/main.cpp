@@ -654,7 +654,7 @@ int main(int argc, char *argv[]) {
 		model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
 		model.addTransformation(ROTATE, 0,360, 0, 10, 1);
 	}
-
+	
 	while (true) {
 		window.clearPixels();
 		for (Model& model : scene){
@@ -724,6 +724,7 @@ int main(int argc, char *argv[]) {
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
 			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
 			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
 			camera.transformations0.erase(t);
 		}
 		if (!camera.transformations1.empty()){
@@ -732,6 +733,7 @@ int main(int argc, char *argv[]) {
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
 			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
 			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
 			camera.transformations1.erase(t);
 		}
 		if (!camera.transformations2.empty()){
@@ -740,6 +742,7 @@ int main(int argc, char *argv[]) {
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
 			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
 			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
 			camera.transformations2.erase(t);
 		}
 		if (finished) break;
