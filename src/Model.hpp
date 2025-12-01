@@ -4,6 +4,7 @@
 #include "Transform.hpp"
 #include "ObjReader.hpp"
 #include "Light.hpp"
+#include "animate.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <map>
@@ -35,6 +36,9 @@ public:
     std::string name;
     ModelType type;
     bool shadows;
+    std::vector<Transformation> transformations0;
+    std::vector<Transformation> transformations1;
+    std::vector<Transformation> transformations2;
 
     Model(){}
     Model(std::string objFile, std::string mtlFile, float scale, std::string name, ModelType type, bool shadows);
@@ -45,6 +49,8 @@ public:
         type = LIGHT;
         shadows = false;
     }
+
+    void addTransformation(TransformationType type, float x = 0, float y = 0, float z = 0, float seconds = 0, int parallel = 0);
 
     void translate(float x, float y, float z);
     void rotate(float xDegrees, float yDegrees, float zDegrees);

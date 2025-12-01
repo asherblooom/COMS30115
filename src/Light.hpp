@@ -2,6 +2,8 @@
 #define LIGHT_HPP
 
 #include <glm/glm.hpp>
+#include "animate.hpp"
+#include <vector>
 
 enum LightType {
 	POINT,
@@ -14,6 +16,9 @@ public:
 	float ambientStrength;
 	glm::vec3 position;
 	LightType type;
+    std::vector<Transformation> transformations0;
+    std::vector<Transformation> transformations1;
+    std::vector<Transformation> transformations2;
 
 	int uSize;
 	int vSize;
@@ -39,6 +44,7 @@ public:
 
 	void translate(float x, float y, float z);
 	void rotate(float xDegrees, float yDegrees, float zDegrees);
+    void addTransformation(TransformationType type, float x = 0, float y = 0, float z = 0, float seconds = 0, int parallel = 0);
 };
 
 #endif

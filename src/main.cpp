@@ -14,7 +14,7 @@
 
 Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
 
-void handleEvent(SDL_Event event, DrawingWindow &window, Camera &camera, bool &rasterising, bool &raytracedOnce) {
+void handleEvent(SDL_Event event, DrawingWindow &window, Camera &camera) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT)
 			camera.translate(0.25, 0, 0);
@@ -57,13 +57,6 @@ void handleEvent(SDL_Event event, DrawingWindow &window, Camera &camera, bool &r
 		if (event.key.keysym.sym == SDLK_j) {
 			camera.rotatePosition(-2, 0, 0);
 			camera.lookat(0, 0, 0);
-		}
-		if (event.key.keysym.sym == SDLK_r) {
-			if (rasterising) {
-				rasterising = false;
-				raytracedOnce = false;
-			} else
-				rasterising = true;
 		}
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -625,8 +618,9 @@ void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera &camera, 
 }
 
 int main(int argc, char *argv[]) {
-	bool rasterising = false;
-	bool raytracedOnce = false;
+	bool rasterising = true;
+	int frameCount = 0;
+	bool finished = true;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
@@ -643,33 +637,108 @@ int main(int argc, char *argv[]) {
 
 	float focalLength = 4;
 	Camera camera{focalLength};
-	camera.translate(0, 0, 3);
+	camera.translate(0, 0, 4);
 	// camera.rotatePosition(0, 5, 0);
 	// camera.lookat(0, 0, 0);
 
 	// Light light{10, 0.3, AREA, 2, 2, {0.3, 0, 0}, {0, 0, 0.3}};
+	std::vector<Light> lights;
 	Light light{10, 0.3, POINT};
 	light.translate(0.3, 0.8, 0.7);
 	light.rotate(0, 10, 0);
-	scene.emplace_back(light);
+	// scene.emplace_back(light); WHAT IF THE LIGHT POSITION MOVES?!?!?!?!?
+	lights.emplace_back(light);
 
-	for (Model &model : scene)
-		model.rotate(0, 10, 0);
+	for (Model &model : scene){
+		// model.rotate(0, 10, 0);
+		model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
+		model.addTransformation(ROTATE, 0,360, 0, 10, 1);
+	}
 
 	while (true) {
-		if (rasterising) {
-			window.clearPixels();
-			rasterise(window, scene, camera);
-		} else if (!raytracedOnce) {
-			window.clearPixels();
-			std::cout << "starting raytracing\n";
-			raytrace(window, scene, camera, light);
-			raytracedOnce = true;
-			std::cout << "finished raytracing\n";
+		window.clearPixels();
+		for (Model& model : scene){
+			if (!model.transformations0.empty()){
+				finished = false;
+				auto t = model.transformations0.begin();
+				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+				model.transformations0.erase(t);
+			}
+			if (!model.transformations1.empty()){
+				finished = false;
+				auto t = model.transformations1.begin();
+				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+				model.transformations1.erase(t);
+			}
+			if (!model.transformations2.empty()){
+				finished = false;
+				auto t = model.transformations2.begin();
+				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+				model.transformations2.erase(t);
+			}
 		}
+		for (Light& light : lights){
+			if (!light.transformations0.empty()){
+				finished = false;
+				auto t = light.transformations0.begin();
+				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+				light.transformations0.erase(t);
+			}
+			if (!light.transformations1.empty()){
+				finished = false;
+				auto t = light.transformations1.begin();
+				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+				light.transformations1.erase(t);
+			}
+			if (!light.transformations2.empty()){
+				finished = false;
+				auto t = light.transformations2.begin();
+				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+				light.transformations2.erase(t);
+			}
+		}
+		if (!camera.transformations0.empty()){
+			finished = false;
+			auto t = camera.transformations0.begin();
+			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			camera.transformations0.erase(t);
+		}
+		if (!camera.transformations1.empty()){
+			finished = false;
+			auto t = camera.transformations1.begin();
+			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			camera.transformations1.erase(t);
+		}
+		if (!camera.transformations2.empty()){
+			finished = false;
+			auto t = camera.transformations2.begin();
+			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+			if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+			if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+			camera.transformations2.erase(t);
+		}
+		if (finished) break;
+		if (rasterising) rasterise(window, scene, camera);
+		else raytrace(window, scene, camera, light);
 		// We MUST poll for events - otherwise the window will freeze !
-		if (window.pollForInputEvents(event)) handleEvent(event, window, camera, rasterising, raytracedOnce);
+		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
+		window.savePPM("output" + std::to_string(frameCount) + ".ppm");
+		finished = true;
+		frameCount++;
 	}
 }
