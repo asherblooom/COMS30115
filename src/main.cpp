@@ -664,7 +664,7 @@ int main(int argc, char *argv[]) {
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
 				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-				if (t->type >= FLAT && t->type <= LIGHT)
+				if (t->type >= FLAT_ && t->type <= LIGHT_)
 					model.type = (ModelType)t->type;
 				model.transformations0.erase(t);
 			}
@@ -674,7 +674,7 @@ int main(int argc, char *argv[]) {
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
 				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-				if (t->type >= FLAT && t->type <= LIGHT)
+				if (t->type >= FLAT_ && t->type <= LIGHT_)
 					model.type = (ModelType)t->type;
 				model.transformations1.erase(t);
 			}
@@ -684,7 +684,7 @@ int main(int argc, char *argv[]) {
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
 				if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-				if (t->type >= FLAT && t->type <= LIGHT)
+				if (t->type >= FLAT_ && t->type <= LIGHT_)
 					model.type = (ModelType)t->type;
 				model.transformations2.erase(t);
 			}
@@ -695,8 +695,8 @@ int main(int argc, char *argv[]) {
 				auto t = light.transformations0.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-				if (t->type == POINT) light.type = POINT;
-				if (t->type == AREA) light.type = AREA;
+				if (t->type == POINTLIGHT) light.type = POINT;
+				if (t->type == AREALIGHT) light.type = AREA;
 				light.transformations0.erase(t);
 			}
 			if (!light.transformations1.empty()){
@@ -704,8 +704,8 @@ int main(int argc, char *argv[]) {
 				auto t = light.transformations1.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-				if (t->type == POINT) light.type = POINT;
-				if (t->type == AREA) light.type = AREA;
+				if (t->type == POINTLIGHT) light.type = POINT;
+				if (t->type == AREALIGHT) light.type = AREA;
 				light.transformations1.erase(t);
 			}
 			if (!light.transformations2.empty()){
@@ -713,8 +713,8 @@ int main(int argc, char *argv[]) {
 				auto t = light.transformations2.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
 				if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-				if (t->type == POINT) light.type = POINT;
-				if (t->type == AREA) light.type = AREA;
+				if (t->type == POINTLIGHT) light.type = POINT;
+				if (t->type == AREALIGHT) light.type = AREA;
 				light.transformations2.erase(t);
 			}
 		}
