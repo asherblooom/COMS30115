@@ -620,7 +620,7 @@ int main(int argc, char *argv[]) {
 		auto &model = pair.second;
 		// model.rotate(0, 10, 0);
 		// model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
-		model.addTransformation(ROTATE, 0, 390, 0, 20, 0);
+		model.addTransformation(ROTATE, 0, 0, 390, 20, 0);
 	}
 	scene["blueBox"].addTransformation(WAIT, 0, 0, 0, 5, 1);
 	scene["blueBox"].addTransformation(MIRROR_, 0, 0, 0, 0, 1);
