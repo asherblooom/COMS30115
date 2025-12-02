@@ -11,6 +11,7 @@
 #include "Light.hpp"
 #include "Model.hpp"
 #include "RayTriangleIntersection.h"
+#include "animate.hpp"
 
 Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
 
@@ -136,20 +137,6 @@ float calculateShadows(std::vector<Model> &scene, glm::vec3 lightPosition, glm::
 	}
 	return lightIntensity;
 }
-
-// Colour ambientLightOnly(float ambientLightStrength, RayTriangleIntersection &intersection) {
-// 	Colour colour = intersection.intersectedTriangle.colour;
-// 	// add ambient light
-// 	colour.red *= ambientLightStrength;
-// 	colour.green *= ambientLightStrength;
-// 	colour.blue *= ambientLightStrength;
-// 	// Cap colour at (255, 255, 255)
-// 	colour.red = std::min(colour.red, 255);
-// 	colour.green = std::min(colour.green, 255);
-// 	colour.blue = std::min(colour.blue, 255);
-//
-// 	return colour;
-// }
 
 float diffuseMultiplier(Light &light, glm::vec3 intersectionPoint, glm::vec3 normal) {
 	float diffuse = 0;
@@ -538,29 +525,6 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 		Colour &colour = intersection.intersectedTriangle.colour;
 		int maxDepth = 10;
 		float lightIntensity = calculateLightIntensity(scene, light, intersection);
-		// if (hasShadow) {
-		// 	switch (intersection.intersectedModel.type) {
-		// 		case MIRROR:
-		// 			colour = mirror(scene, light, direction, intersection, depth, maxDepth, inShadow);
-		// 			break;
-		// 		case MIRROR_PHONG:
-		// 			colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, inShadow);
-		// 			break;
-		// 		case GLASS: {
-		// 			float refractionIndex = 1.5;
-		// 			colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
-		// 			break;
-		// 		}
-		// 		case GLASS_PHONG: {
-		// 			float refractionIndex = 1.5;
-		// 			colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, inShadow);
-		// 			break;
-		// 		}
-		// 		default:
-		// 			colour = ambientLightOnly(light.ambientStrength, intersection);
-		// 			break;
-		// 	}
-		// } else {
 		switch (intersection.intersectedModel.type) {
 			case FLAT:
 				colour = diffuseAmbientShading(light, direction, intersection, lightIntensity);
@@ -649,16 +613,19 @@ int main(int argc, char *argv[]) {
 	// scene.emplace_back(light); WHAT IF THE LIGHT POSITION MOVES?!?!?!?!?
 	lights.emplace_back(light);
 
-	for (Model &model : scene){
+	for (Model &model : scene) {
 		// model.rotate(0, 10, 0);
-		model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
-		model.addTransformation(ROTATE, 0,360, 0, 10, 1);
+		// model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
+		model.addTransformation(ROTATE, 0, 390, 0, 20, 0);
+		model.addTransformation(ROTATE, 0, 390, 0, 20, 0);
 	}
-	
+	camera.addTransformation(WAIT, 0, 0, 0, 20, 0);
+	camera.addTransformation(SWITCH_RENDERING_METHOD, 0, 0, 0, 0, 0);
+
 	while (true) {
 		window.clearPixels();
-		for (Model& model : scene){
-			if (!model.transformations0.empty()){
+		for (Model &model : scene) {
+			if (!model.transformations0.empty()) {
 				finished = false;
 				auto t = model.transformations0.begin();
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
@@ -668,7 +635,7 @@ int main(int argc, char *argv[]) {
 					model.type = (ModelType)t->type;
 				model.transformations0.erase(t);
 			}
-			if (!model.transformations1.empty()){
+			if (!model.transformations1.empty()) {
 				finished = false;
 				auto t = model.transformations1.begin();
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
@@ -678,7 +645,7 @@ int main(int argc, char *argv[]) {
 					model.type = (ModelType)t->type;
 				model.transformations1.erase(t);
 			}
-			if (!model.transformations2.empty()){
+			if (!model.transformations2.empty()) {
 				finished = false;
 				auto t = model.transformations2.begin();
 				if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
@@ -689,8 +656,8 @@ int main(int argc, char *argv[]) {
 				model.transformations2.erase(t);
 			}
 		}
-		for (Light& light : lights){
-			if (!light.transformations0.empty()){
+		for (Light &light : lights) {
+			if (!light.transformations0.empty()) {
 				finished = false;
 				auto t = light.transformations0.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
@@ -699,7 +666,7 @@ int main(int argc, char *argv[]) {
 				if (t->type == AREALIGHT) light.type = AREA;
 				light.transformations0.erase(t);
 			}
-			if (!light.transformations1.empty()){
+			if (!light.transformations1.empty()) {
 				finished = false;
 				auto t = light.transformations1.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
@@ -708,7 +675,7 @@ int main(int argc, char *argv[]) {
 				if (t->type == AREALIGHT) light.type = AREA;
 				light.transformations1.erase(t);
 			}
-			if (!light.transformations2.empty()){
+			if (!light.transformations2.empty()) {
 				finished = false;
 				auto t = light.transformations2.begin();
 				if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
@@ -718,7 +685,7 @@ int main(int argc, char *argv[]) {
 				light.transformations2.erase(t);
 			}
 		}
-		if (!camera.transformations0.empty()){
+		if (!camera.transformations0.empty()) {
 			finished = false;
 			auto t = camera.transformations0.begin();
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
@@ -727,7 +694,7 @@ int main(int argc, char *argv[]) {
 			if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
 			camera.transformations0.erase(t);
 		}
-		if (!camera.transformations1.empty()){
+		if (!camera.transformations1.empty()) {
 			finished = false;
 			auto t = camera.transformations1.begin();
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
@@ -736,7 +703,7 @@ int main(int argc, char *argv[]) {
 			if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
 			camera.transformations1.erase(t);
 		}
-		if (!camera.transformations2.empty()){
+		if (!camera.transformations2.empty()) {
 			finished = false;
 			auto t = camera.transformations2.begin();
 			if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
@@ -746,13 +713,15 @@ int main(int argc, char *argv[]) {
 			camera.transformations2.erase(t);
 		}
 		if (finished) break;
-		if (rasterising) rasterise(window, scene, camera);
-		else raytrace(window, scene, camera, light);
+		if (rasterising)
+			rasterise(window, scene, camera);
+		else
+			raytrace(window, scene, camera, light);
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
-		window.savePPM("output" + std::to_string(frameCount) + ".ppm");
+		window.saveBMP("output" + std::to_string(frameCount) + ".ppm");
 		finished = true;
 		frameCount++;
 	}
