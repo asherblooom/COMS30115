@@ -21,7 +21,8 @@ enum TransformationType{
 	TRANSLATE,
 	ROTATEPOSITION,
 	WAIT,
-	SWITCH_RENDERING_METHOD
+	SWITCH_RENDERING_METHOD,
+	SHADOWS
 };
 
 struct Transformation {

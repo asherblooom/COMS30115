@@ -12,6 +12,8 @@
 #include "Model.hpp"
 #include "RayTriangleIntersection.h"
 #include "animate.hpp"
+#include <iomanip> 
+#include <sstream> 
 
 Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
 
@@ -594,7 +596,7 @@ int main(int argc, char *argv[]) {
 	// load models
 	std::map<std::string, Model> scene;
 	scene.emplace("redBox", Model{"red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true});
-	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true});
+	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", GLASS, false});
 	scene.emplace("leftWall", Model{"left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true});
 	scene.emplace("rightWall", Model{"right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true});
 	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
@@ -620,7 +622,8 @@ int main(int argc, char *argv[]) {
 		auto &model = pair.second;
 		// model.rotate(0, 10, 0);
 		// model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
-		model.addTransformation(ROTATE, 0, 0, 390, 20, 0);
+		// model.addTransformation(ROTATE, 0, 0, 390, 20, 0);
+		model.rotate(0, 0, 270);
 	}
 	scene["blueBox"].addTransformation(WAIT, 0, 0, 0, 5, 1);
 	scene["blueBox"].addTransformation(MIRROR_, 0, 0, 0, 0, 1);
@@ -635,107 +638,112 @@ int main(int argc, char *argv[]) {
 
 	raytrace(window, scene, camera, light);
 	while (true) {
-		// window.clearPixels();
-		// 	for (auto &pair : scene) {
-		// 		Model &model = pair.second;
-		// 		if (!model.transformations0.empty()) {
-		// 			finished = false;
-		// 			auto t = model.transformations0.begin();
-		// 			if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
-		// 			if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-		// 			if (t->type >= FLAT_ && t->type <= LIGHT_)
-		// 				model.type = (ModelType)t->type;
-		// 			model.transformations0.erase(t);
-		// 		}
-		// 		if (!model.transformations1.empty()) {
-		// 			finished = false;
-		// 			auto t = model.transformations1.begin();
-		// 			if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
-		// 			if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-		// 			if (t->type >= FLAT_ && t->type <= LIGHT_)
-		// 				model.type = (ModelType)t->type;
-		// 			model.transformations1.erase(t);
-		// 		}
-		// 		if (!model.transformations2.empty()) {
-		// 			finished = false;
-		// 			auto t = model.transformations2.begin();
-		// 			if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
-		// 			if (t->type == SCALE) model.scale(t->x, t->y, t->z);
-		// 			if (t->type >= FLAT_ && t->type <= LIGHT_)
-		// 				model.type = (ModelType)t->type;
-		// 			model.transformations2.erase(t);
-		// 		}
-		// 	}
-		// 	for (Light &light : lights) {
-		// 		if (!light.transformations0.empty()) {
-		// 			finished = false;
-		// 			auto t = light.transformations0.begin();
-		// 			if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-		// 			if (t->type == POINTLIGHT) light.type = POINT;
-		// 			if (t->type == AREALIGHT) light.type = AREA;
-		// 			light.transformations0.erase(t);
-		// 		}
-		// 		if (!light.transformations1.empty()) {
-		// 			finished = false;
-		// 			auto t = light.transformations1.begin();
-		// 			if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-		// 			if (t->type == POINTLIGHT) light.type = POINT;
-		// 			if (t->type == AREALIGHT) light.type = AREA;
-		// 			light.transformations1.erase(t);
-		// 		}
-		// 		if (!light.transformations2.empty()) {
-		// 			finished = false;
-		// 			auto t = light.transformations2.begin();
-		// 			if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
-		// 			if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
-		// 			if (t->type == POINTLIGHT) light.type = POINT;
-		// 			if (t->type == AREALIGHT) light.type = AREA;
-		// 			light.transformations2.erase(t);
-		// 		}
-		// 	}
-		// 	if (!camera.transformations0.empty()) {
-		// 		finished = false;
-		// 		auto t = camera.transformations0.begin();
-		// 		if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
-		// 		if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
-		// 		if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
-		// 		if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
-		// 		camera.transformations0.erase(t);
-		// 	}
-		// 	if (!camera.transformations1.empty()) {
-		// 		finished = false;
-		// 		auto t = camera.transformations1.begin();
-		// 		if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
-		// 		if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
-		// 		if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
-		// 		if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
-		// 		camera.transformations1.erase(t);
-		// 	}
-		// 	if (!camera.transformations2.empty()) {
-		// 		finished = false;
-		// 		auto t = camera.transformations2.begin();
-		// 		if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
-		// 		if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
-		// 		if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
-		// 		if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
-		// 		camera.transformations2.erase(t);
-		// 	}
-		// 	if (finished) break;
-		// 	if (rasterising)
-		// 		rasterise(window, scene, camera);
-		// 	else
-		// 		raytrace(window, scene, camera, light);
-		// 	// We MUST poll for events - otherwise the window will freeze !
+		window.clearPixels();
+			for (auto &pair : scene) {
+				Model &model = pair.second;
+				if (!model.transformations0.empty()) {
+					finished = false;
+					auto t = model.transformations0.begin();
+					if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+					if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+					if (t->type >= FLAT_ && t->type <= LIGHT_)
+						model.type = (ModelType)t->type;
+					if (t->type == SHADOWS) model.shadows = !model.shadows;
+					model.transformations0.erase(t);
+				}
+				if (!model.transformations1.empty()) {
+					finished = false;
+					auto t = model.transformations1.begin();
+					if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+					if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+					if (t->type >= FLAT_ && t->type <= LIGHT_)
+						model.type = (ModelType)t->type;
+					if (t->type == SHADOWS) model.shadows = !model.shadows;
+					model.transformations1.erase(t);
+				}
+				if (!model.transformations2.empty()) {
+					finished = false;
+					auto t = model.transformations2.begin();
+					if (t->type == ROTATE) model.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) model.translate(t->x, t->y, t->z);
+					if (t->type == SCALE) model.scale(t->x, t->y, t->z);
+					if (t->type >= FLAT_ && t->type <= LIGHT_)
+						model.type = (ModelType)t->type;
+					if (t->type == SHADOWS) model.shadows = !model.shadows;
+					model.transformations2.erase(t);
+				}
+			}
+			for (Light &light : lights) {
+				if (!light.transformations0.empty()) {
+					finished = false;
+					auto t = light.transformations0.begin();
+					if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+					if (t->type == POINTLIGHT) light.type = POINT;
+					if (t->type == AREALIGHT) light.type = AREA;
+					light.transformations0.erase(t);
+				}
+				if (!light.transformations1.empty()) {
+					finished = false;
+					auto t = light.transformations1.begin();
+					if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+					if (t->type == POINTLIGHT) light.type = POINT;
+					if (t->type == AREALIGHT) light.type = AREA;
+					light.transformations1.erase(t);
+				}
+				if (!light.transformations2.empty()) {
+					finished = false;
+					auto t = light.transformations2.begin();
+					if (t->type == ROTATE) light.rotate(t->x, t->y, t->z);
+					if (t->type == TRANSLATE) light.translate(t->x, t->y, t->z);
+					if (t->type == POINTLIGHT) light.type = POINT;
+					if (t->type == AREALIGHT) light.type = AREA;
+					light.transformations2.erase(t);
+				}
+			}
+			if (!camera.transformations0.empty()) {
+				finished = false;
+				auto t = camera.transformations0.begin();
+				if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+				if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+				if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
+				camera.transformations0.erase(t);
+			}
+			if (!camera.transformations1.empty()) {
+				finished = false;
+				auto t = camera.transformations1.begin();
+				if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+				if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+				if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
+				camera.transformations1.erase(t);
+			}
+			if (!camera.transformations2.empty()) {
+				finished = false;
+				auto t = camera.transformations2.begin();
+				if (t->type == ROTATE) camera.rotate(t->x, t->y, t->z);
+				if (t->type == TRANSLATE) camera.translate(t->x, t->y, t->z);
+				if (t->type == ROTATEPOSITION) camera.rotatePosition(t->x, t->y, t->z);
+				if (t->type == SWITCH_RENDERING_METHOD) rasterising = !rasterising;
+				camera.transformations2.erase(t);
+			}
+			if (finished) break;
+			if (rasterising)
+				rasterise(window, scene, camera);
+			else
+				raytrace(window, scene, camera, light);
+			// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
 		// 	// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
-		// 	window.saveBMP("output" + std::to_string(frameCount) + ".bmp");
-		// 	finished = true;
-		// 	frameCount++;
+		std::stringstream ss;
+		ss << std::setfill('0') << std::setw(5) << frameCount;
+		window.saveBMP("output" + ss.str() + ".bmp");
+		finished = true;
+		frameCount++;
 	}
 }
