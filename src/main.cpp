@@ -13,7 +13,7 @@
 #include "RayTriangleIntersection.h"
 #include "animate.hpp"
 
-Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
+Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
 
 void handleEvent(SDL_Event event, DrawingWindow &window, Camera &camera) {
 	if (event.type == SDL_KEYDOWN) {
@@ -86,10 +86,11 @@ CanvasTriangle getCanvasIntersectionTriangle(Camera &camera, ModelTriangle &tria
 	return {v0, v1, v2};
 }
 
-void rasterise(DrawingWindow &window, std::vector<Model> &scene, Camera &camera) {
+void rasterise(DrawingWindow &window, std::map<std::string, Model> &scene, Camera &camera) {
 	// reset depth buffer
 	std::vector<float> depthBuffer((window.width * window.height), 0);
-	for (Model &model : scene) {
+	for (auto &pair : scene) {
+		Model &model = pair.second;
 		for (ModelTriangle &triangle : model.triangles) {
 			bool draw = true;
 			// transform camera????
@@ -102,7 +103,7 @@ void rasterise(DrawingWindow &window, std::vector<Model> &scene, Camera &camera)
 	}
 }
 
-float calculateShadows(std::vector<Model> &scene, glm::vec3 lightPosition, glm::vec3 intersectionPoint, std::string originObjName) {
+float calculateShadows(std::map<std::string, Model> &scene, glm::vec3 lightPosition, glm::vec3 intersectionPoint, std::string originObjName) {
 	glm::vec3 shadowRayDir = lightPosition - intersectionPoint;
 	float distToLight = glm::length(shadowRayDir);
 	// we normalise after calculating distToLight so that distToLight is actual distance,
@@ -112,7 +113,8 @@ float calculateShadows(std::vector<Model> &scene, glm::vec3 lightPosition, glm::
 	float lightIntensity = 1;
 	float minT = distToLight;
 
-	for (Model &model : scene) {
+	for (auto &pair : scene) {
+		Model &model = pair.second;
 		if (model.name == originObjName) continue;	// don't want to hit ourselves
 		for (ModelTriangle &triangle : model.triangles) {
 			glm::vec3 &v0 = triangle.vertices[0];
@@ -270,7 +272,7 @@ Colour phongShading(Light &light, glm::vec3 rayDir, RayTriangleIntersection &int
 	return colour;
 }
 
-Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
+Colour mirror(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
 	Colour colour;
 	if (depth < maxDepth) {
 		depth += 1;
@@ -295,7 +297,7 @@ Colour mirror(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTria
 	return colour;
 }
 
-Colour mirrorPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
+Colour mirrorPhong(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, int depth, int maxDepth, float lightIntensity) {
 	Colour colour;
 	float u = intersection.u;
 	float v = intersection.v;
@@ -344,7 +346,7 @@ float fresnel(float rIndexi, float rIndext, float cosi, float cost) {
 	}
 }
 
-Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
+Colour transparentShading(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
 	const float BIAS = 0.001;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 
@@ -404,7 +406,7 @@ Colour transparentShading(std::vector<Model> &scene, Light &light, glm::vec3 ray
 	return {0, 0, 0};
 }
 
-Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
+Colour transparentShadingPhong(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
 	const float BIAS = 0.01;
 	Colour refractionColour{0, 0, 0};
 
@@ -472,7 +474,7 @@ Colour transparentShadingPhong(std::vector<Model> &scene, Light &light, glm::vec
 	return {0, 0, 0};
 }
 
-float calculateLightIntensity(std::vector<Model> &scene, Light &light, RayTriangleIntersection &intersection) {
+float calculateLightIntensity(std::map<std::string, Model> &scene, Light &light, RayTriangleIntersection &intersection) {
 	float intensity = 0;
 	if (light.type == POINT)
 		intensity = calculateShadows(scene, light.position, intersection.intersectionPoint, intersection.intersectedModel.name);
@@ -488,11 +490,12 @@ float calculateLightIntensity(std::vector<Model> &scene, Light &light, RayTriang
 	return intensity;
 }
 
-Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth, std::string originObjName) {
+Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth, std::string originObjName) {
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
 
-	for (Model &model : scene) {
+	for (auto &pair : scene) {
+		Model &model = pair.second;
 		if (depth > 0 && originObjName != "" && model.name == originObjName) continue;	// don't want to hit ourselves (for mirrors etc.)
 		for (int i = 0; i < model.triangles.size(); i++) {
 			ModelTriangle &triangle = model.triangles.at(i);
@@ -564,7 +567,7 @@ Colour castRay(std::vector<Model> &scene, glm::vec3 origin, glm::vec3 direction,
 	return {0, 0, 0};
 }
 
-void raytrace(DrawingWindow &window, std::vector<Model> &scene, Camera &camera, Light &light) {
+void raytrace(DrawingWindow &window, std::map<std::string, Model> &scene, Camera &camera, Light &light) {
 	// TODO: help for perspective-correct textures: jacob pro computer graphics RasterisedRenderer.cpp
 	for (int h = 0; h < window.height; h++) {
 		for (int w = 0; w < window.width; w++) {
@@ -589,15 +592,15 @@ int main(int argc, char *argv[]) {
 	SDL_Event event;
 
 	// load models
-	std::vector<Model> scene;
-	scene.emplace_back("red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true);
-	scene.emplace_back("blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true);
-	scene.emplace_back("left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true);
-	scene.emplace_back("right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true);
-	scene.emplace_back("back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true);
-	scene.emplace_back("ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true);
-	scene.emplace_back("floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true);
-	scene.emplace_back("sphere.obj", "", 0.35, "sphere", FLAT_SPECULAR, true);
+	std::map<std::string, Model> scene;
+	scene.emplace("redBox", Model{"red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true});
+	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true});
+	scene.emplace("leftWall", Model{"left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true});
+	scene.emplace("rightWall", Model{"right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true});
+	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
+	scene.emplace("ceiling", Model{"ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true});
+	scene.emplace("floor", Model{"floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true});
+	scene.emplace("sphere", Model{"sphere.obj", "", 0.35, "sphere", FLAT_SPECULAR, true});
 
 	float focalLength = 4;
 	Camera camera{focalLength};
@@ -613,18 +616,27 @@ int main(int argc, char *argv[]) {
 	// scene.emplace_back(light); WHAT IF THE LIGHT POSITION MOVES?!?!?!?!?
 	lights.emplace_back(light);
 
-	for (Model &model : scene) {
+	for (auto &pair : scene) {
+		auto &model = pair.second;
 		// model.rotate(0, 10, 0);
 		// model.addTransformation(ROTATE, 360, 0, 0, 30, 0);
 		model.addTransformation(ROTATE, 0, 390, 0, 20, 0);
-		model.addTransformation(ROTATE, 0, 390, 0, 20, 0);
 	}
-	camera.addTransformation(WAIT, 0, 0, 0, 20, 0);
+	scene["blueBox"].addTransformation(WAIT, 0, 0, 0, 5, 1);
+	scene["blueBox"].addTransformation(MIRROR_, 0, 0, 0, 0, 1);
+	scene["blueBox"].addTransformation(WAIT, 0, 0, 0, 10, 1);
+	scene["blueBox"].addTransformation(GLASS_, 0, 0, 0, 0, 1);
+	scene["sphere"].addTransformation(WAIT, 0, 0, 0, 10, 1);
+	scene["sphere"].addTransformation(MIRROR_PHONG_, 0, 0, 0, 0, 1);
+	scene["backWall"].addTransformation(WAIT, 0, 0, 0, 15, 1);
+	scene["backWall"].addTransformation(MIRROR_, 0, 0, 0, 0, 1);
+
 	camera.addTransformation(SWITCH_RENDERING_METHOD, 0, 0, 0, 0, 0);
 
 	while (true) {
 		window.clearPixels();
-		for (Model &model : scene) {
+		for (auto &pair : scene) {
+			Model &model = pair.second;
 			if (!model.transformations0.empty()) {
 				finished = false;
 				auto t = model.transformations0.begin();
