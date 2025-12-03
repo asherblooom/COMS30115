@@ -1,7 +1,7 @@
 #ifndef ANIMATE_HPP
 #define ANIMATE_HPP
 
-enum TransformationType{
+enum TransformationType {
 	// model types
 	FLAT_,
 	FLAT_SPECULAR_,
@@ -23,6 +23,12 @@ enum TransformationType{
 	WAIT,
 	SWITCH_RENDERING_METHOD,
 	SHADOWS
+};
+
+enum RenderMethod {
+	WIREFRAME,
+	RASTERISE,
+	RAYTRACE
 };
 
 struct Transformation {

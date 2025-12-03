@@ -120,6 +120,12 @@ void fillFlatTriangle(DrawingWindow &window, std::vector<float> &depthBuffer,
 }
 
 void drawFilledTriangle(DrawingWindow &window, std::vector<float> &depthBuffer, CanvasTriangle triangle, Colour colour) {
+	for (CanvasPoint &v : triangle.vertices) {
+		if (v.x < 0) v.x = 0;
+		if (v.x >= WIDTH) v.x = WIDTH - 1;
+		if (v.y < 0) v.y = 0;
+		if (v.y >= HEIGHT) v.y = HEIGHT - 1;
+	}
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
 	CanvasPoint &v0 = triangle.vertices.at(0);	// vertex with lowest y value
 	CanvasPoint &v1 = triangle.vertices.at(1);	// vertex with mid y value
