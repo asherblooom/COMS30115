@@ -20,6 +20,6 @@ void drawStokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 
 void drawFilledTriangle(DrawingWindow &window, std::vector<float> &depthBuffer, CanvasTriangle triangle, Colour colour = {255, 255, 255});
 
-void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap texture);
+void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, std::vector<float> &depthBuffer, TextureMap texture);
 
 #endif

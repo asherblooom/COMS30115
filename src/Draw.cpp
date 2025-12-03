@@ -153,23 +153,30 @@ void drawFilledTriangle(DrawingWindow &window, std::vector<float> &depthBuffer, 
 	}
 }
 
-void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int yEnd,
+void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, std::vector<float> &depthBuffer, int yStart, int yEnd,
 						 std::vector<float> &xs1, std::vector<float> &xs2,
+						 std::vector<float> &zs1, std::vector<float> zs2,
 						 std::vector<glm::vec2> &texLine1, std::vector<glm::vec2> &texLine2) {
 	// these are pointers to avoid copying
 	std::vector<float> *leftXs;
 	std::vector<float> *rightXs;
 	std::vector<glm::vec2> *leftTexLine;
 	std::vector<glm::vec2> *rightTexLine;
+	std::vector<float> *leftZs;
+	std::vector<float> *rightZs;
 	// for triangle to be valid, the lines (the xs) cannot intersect other than at positions 0 and size - 1
 	// so to check which side each is on, we take the min halfway point and use that
 	float minHalfway = std::min(xs1.size() / 2, xs2.size() / 2);
 	if (xs1.at(minHalfway) <= xs2.at(minHalfway)) {
 		leftXs = &xs1;
 		rightXs = &xs2;
+		leftZs = &zs1;
+		rightZs = &zs2;
 	} else {
 		leftXs = &xs2;
 		rightXs = &xs1;
+		leftZs = &zs2;
+		rightZs = &zs1;
 	}
 
 	if (texLine1.at(minHalfway).x <= texLine2.at(minHalfway).x) {
@@ -183,16 +190,20 @@ void textureFlatTriangle(DrawingWindow &window, TextureMap &tex, int yStart, int
 	for (int y = 0; y <= yEnd - yStart; y++) {
 		int xStart = (int)leftXs->at(y);
 		int xEnd = (int)rightXs->at(y);
+		std::vector<float> horizontalZs = interpolate(1 / leftZs->at(y), 1 / rightZs->at(y), xEnd - xStart + 1);
 		std::vector<glm::vec2> texLine = interpolate(leftTexLine->at(y), rightTexLine->at(y), xEnd - xStart + 1);
 		for (int x = 0; x <= xEnd - xStart; x++) {
-			glm::vec2 texPos = texLine.at(x);
-			uint32_t colour = tex.pixels.at((int)texPos.y * tex.width + (int)texPos.x);
-			window.setPixelColour(x + xStart, y + yStart, colour);
+			if (depthBuffer[WIDTH * (y + yStart) + (x + xStart)] < horizontalZs.at(x)) {
+				glm::vec2 texPos = texLine.at(x);
+				uint32_t colour = tex.pixels.at((int)texPos.y * tex.width + (int)texPos.x);
+				window.setPixelColour(x + xStart, y + yStart, colour);
+				depthBuffer[WIDTH * (y + yStart) + (x + xStart)] = horizontalZs.at(x);
+			}
 		}
 	}
 }
 
-void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap texture) {
+void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, std::vector<float> &depthBuffer, TextureMap texture) {
 	std::sort(triangle.vertices.begin(), triangle.vertices.end(), [](CanvasPoint &a, CanvasPoint &b) { return a.y < b.y; });
 	CanvasPoint &v0 = triangle.vertices[0];	 // vertex with lowest y value
 	CanvasPoint &v1 = triangle.vertices[1];	 // vertex with mid y value
@@ -211,22 +222,25 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Textur
 	std::vector<float> line02xs = interpolate(v0.x, v2.x, std::ceil(v2.y - v0.y) + 1);
 	std::vector<float> line12xs = interpolate(v1.x, v2.x, std::ceil(v2.y - v1.y) + 1);
 
+	std::vector<float> line01zs = interpolate(v0.depth, v1.depth, std::ceil(v1.y - v0.y) + 1);
+	std::vector<float> line02zs = interpolate(v0.depth, v2.depth, std::ceil(v2.y - v0.y) + 1);
+	std::vector<float> line12zs = interpolate(v1.depth, v2.depth, std::ceil(v2.y - v1.y) + 1);
+
 	std::vector<glm::vec2> texLine01 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t1.x, t1.y}, std::ceil(v1.y - v0.y) + 1);
 	std::vector<glm::vec2> texLine02 = interpolate(glm::vec2{t0.x, t0.y}, glm::vec2{t2.x, t2.y}, std::ceil(v2.y - v0.y) + 1);
 	std::vector<glm::vec2> texLine12 = interpolate(glm::vec2{t1.x, t1.y}, glm::vec2{t2.x, t2.y}, std::ceil(v2.y - v1.y) + 1);
 
 	if (v0.y == v1.y) {
-		textureFlatTriangle(window, texture, v0.y, v2.y, line02xs, line12xs, texLine02, texLine12);
+		textureFlatTriangle(window, texture, depthBuffer, v0.y, v2.y, line02xs, line12xs, line02zs, line12zs, texLine02, texLine12);
 	} else if (v1.y == v2.y) {
-		textureFlatTriangle(window, texture, v0.y, v2.y, line01xs, line02xs, texLine01, texLine02);
+		textureFlatTriangle(window, texture, depthBuffer, v0.y, v2.y, line01xs, line02xs, line01zs, line02zs, texLine01, texLine02);
 	} else {
 		// need to fill triangle in 2 goes
 		// the first x value we want to use must be at position 0, so we have to shorten front of vector for bottom part of line
 		std::vector<float> bottomLine02xs{line02xs.begin() + (v1.y - v0.y), line02xs.end()};
 		std::vector<glm::vec2> bottomTexLine02{texLine02.begin() + (v1.y - v0.y), texLine02.end()};
-		textureFlatTriangle(window, texture, v0.y, v1.y, line01xs, line02xs, texLine01, texLine02);
-		textureFlatTriangle(window, texture, v1.y, v2.y, line12xs, bottomLine02xs, texLine12, bottomTexLine02);
+		std::vector<float> bottomLine02zs{line02zs.begin() + (v1.y - v0.y), line02zs.end()};
+		textureFlatTriangle(window, texture, depthBuffer, v0.y, v1.y, line01xs, line02xs, line01zs, line02zs, texLine01, texLine02);
+		textureFlatTriangle(window, texture, depthBuffer, v1.y, v2.y, line12xs, bottomLine02xs, line12zs, bottomLine02zs, texLine12, bottomTexLine02);
 	}
-
-	drawStokedTriangle(window, triangle, {255, 255, 255});
 }
