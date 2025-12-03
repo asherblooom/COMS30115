@@ -16,7 +16,7 @@
 #include "RayTriangleIntersection.h"
 #include "animate.hpp"
 
-Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "");
+Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth = 0, std::string originObjName = "", ModelTriangle *tri = nullptr);
 
 void handleEvent(SDL_Event event, DrawingWindow &window, Camera &camera) {
 	if (event.type == SDL_KEYDOWN) {
@@ -362,8 +362,7 @@ float fresnel(float rIndexi, float rIndext, float cosi, float cost) {
 }
 
 Colour transparentShading(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
-	// FIXME: FIX BIAS AHHHH
-	const float BIAS = 0.1;
+	const float BIAS = 0.05;
 	glm::vec3 normal = intersection.intersectedTriangle.normal;
 
 	// calculate refractive index and cos for incident and transmitted ray
@@ -389,12 +388,12 @@ Colour transparentShading(std::map<std::string, Model> &scene, Light &light, glm
 		if (kr < 1) {
 			glm::vec3 refractionDir = glm::normalize(refractRay(rayDir, normal, rIndexi, rIndext, cosi, cost));
 			glm::vec3 refractionRayOrig = outside ? intersection.intersectionPoint - biasVec : intersection.intersectionPoint + biasVec;
-			refractionColour = castRay(scene, refractionRayOrig, refractionDir, light, depth, "");
+			refractionColour = castRay(scene, refractionRayOrig, refractionDir, light, depth, "", &(intersection.intersectedTriangle));
 		}
 
 		glm::vec3 reflectionDir = glm::normalize(rayDir - 2.0f * normal * glm::dot(rayDir, normal));
 		glm::vec3 reflectionRayOrig = outside ? intersection.intersectionPoint + biasVec : intersection.intersectionPoint - biasVec;
-		Colour reflectionColour = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "");
+		Colour reflectionColour = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "", &intersection.intersectedTriangle);
 
 		// mix the two
 		Colour colour;
@@ -423,7 +422,7 @@ Colour transparentShading(std::map<std::string, Model> &scene, Light &light, glm
 }
 
 Colour transparentShadingPhong(std::map<std::string, Model> &scene, Light &light, glm::vec3 rayDir, RayTriangleIntersection &intersection, float refractionIndex, int depth, int maxDepth, float lightIntensity) {
-	const float BIAS = 0.01;
+	const float BIAS = 0.05;
 	Colour refractionColour{0, 0, 0};
 
 	float u = intersection.u;
@@ -457,12 +456,12 @@ Colour transparentShadingPhong(std::map<std::string, Model> &scene, Light &light
 		if (kr < 1) {
 			glm::vec3 refractionDir = glm::normalize(refractRay(rayDir, normal, rIndexi, rIndext, cosi, cost));
 			glm::vec3 refractionRayOrig = outside ? intersection.intersectionPoint - biasVec : intersection.intersectionPoint + biasVec;
-			refractionColour = castRay(scene, refractionRayOrig, refractionDir, light, depth, "");
+			refractionColour = castRay(scene, refractionRayOrig, refractionDir, light, depth, "", &triangle);
 		}
 
 		glm::vec3 reflectionDir = glm::normalize(rayDir - 2.0f * normal * glm::dot(rayDir, normal));
 		glm::vec3 reflectionRayOrig = outside ? intersection.intersectionPoint + biasVec : intersection.intersectionPoint - biasVec;
-		Colour reflectionColour = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "");
+		Colour reflectionColour = castRay(scene, reflectionRayOrig, reflectionDir, light, depth, "", &triangle);
 
 		// mix the two
 		Colour colour;
@@ -506,7 +505,7 @@ float calculateLightIntensity(std::map<std::string, Model> &scene, Light &light,
 	return intensity;
 }
 
-Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth, std::string originObjName) {
+Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 direction, Light &light, int depth, std::string originObjName, ModelTriangle *tri) {
 	float tSmallest = MAXFLOAT;
 	RayTriangleIntersection intersection;
 
@@ -515,6 +514,7 @@ Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 
 		if (depth > 0 && originObjName != "" && model.name == originObjName) continue;	// don't want to hit ourselves (for mirrors etc.)
 		for (int i = 0; i < model.triangles.size(); i++) {
 			ModelTriangle &triangle = model.triangles.at(i);
+			if (tri != nullptr && tri == &triangle) continue;  // for glass !
 			glm::vec3 &v0 = triangle.vertices[0];
 			glm::vec3 &v1 = triangle.vertices[1];
 			glm::vec3 &v2 = triangle.vertices[2];
@@ -542,7 +542,6 @@ Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 
 	if (tSmallest < MAXFLOAT) {
 		// we found a hit in the above loop
 		Colour &colour = intersection.intersectedTriangle.colour;
-		int maxDepth = 10;
 		float lightIntensity = calculateLightIntensity(scene, light, intersection);
 		switch (intersection.intersectedModel.type) {
 			case FLAT:
@@ -559,19 +558,19 @@ Colour castRay(std::map<std::string, Model> &scene, glm::vec3 origin, glm::vec3 
 				colour = phongShading(light, direction, intersection, lightIntensity);
 				break;
 			case MIRROR:
-				colour = mirror(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
+				colour = mirror(scene, light, direction, intersection, depth, 10, lightIntensity);
 				break;
 			case MIRROR_PHONG:
-				colour = mirrorPhong(scene, light, direction, intersection, depth, maxDepth, lightIntensity);
+				colour = mirrorPhong(scene, light, direction, intersection, depth, 10, lightIntensity);
 				break;
 			case GLASS: {
 				float refractionIndex = 1.5;
-				colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
+				colour = transparentShading(scene, light, direction, intersection, refractionIndex, depth, 20, lightIntensity);
 				break;
 			}
 			case GLASS_PHONG: {
 				float refractionIndex = 1.5;
-				colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, maxDepth, lightIntensity);
+				colour = transparentShadingPhong(scene, light, direction, intersection, refractionIndex, depth, 10, lightIntensity);
 				break;
 			}
 			case LIGHT:
@@ -1313,10 +1312,18 @@ void animate(int &frameCount) {
 	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
 	scene.emplace("ceiling", Model{"ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true});
 	scene.emplace("floor", Model{"floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true});
-	scene.emplace("bunny", Model{"bunny-low.obj", "", 0.012, "bunny", GLASS, false});
+	// scene.emplace("redBox", Model{"red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true});
+	// scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", GLASS, false});
+	scene.emplace("sphere", Model{"sphere.obj", "", 0.4, "sphere", GLASS_PHONG, false});
+	scene.emplace("sphere1", Model{"sphere.obj", "", 0.35, "sphere", FLAT_SPECULAR, false});
+	// scene.emplace("bunny", Model{"bunny-low.obj", "", 0.012, "bunny", GLASS, false});
 	// set up bunny
-	scene["bunny"].rotate(90, 0, 0);
-	scene["bunny"].translate(-0.4, -1, 0);
+	// scene["bunny"].rotate(90, 0, 0);
+	// scene["bunny"].translate(-0.4, -0.8, 0);
+	scene["sphere"].rotate(0, 1, 0);
+	scene["sphere"].translate(0, -0.7, 0);
+	scene["sphere1"].rotate(0, 1, 0);
+	scene["sphere1"].translate(-0.3, -0.7, -0.7);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
@@ -1325,36 +1332,36 @@ void animate(int &frameCount) {
 	Light light{10, 0.3, POINT, 2, 2, {0.3, 0, 0}, {0, 0, 0.3}};
 	light.translate(0, 0.5, 0.7);
 
-	light.addTransformation(TRANSLATE, 0.8, 0, 0, 4, 0);
-	light.addTransformation(TRANSLATE, -1.6, 0, 0, 8, 0);
-	light.addTransformation(TRANSLATE, 0.8, 0, 0, 4, 0);
+	// light.addTransformation(TRANSLATE, 0.8, 0, 0, 4, 0);
+	// light.addTransformation(TRANSLATE, -1.6, 0, 0, 8, 0);
+	// light.addTransformation(TRANSLATE, 0.8, 0, 0, 4, 0);
 
-	camera.addTransformation(ROTATEPOSITION, 20, 0, 0, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 12, 0);
-	camera.addTransformation(ROTATEPOSITION, -20, 0, 0, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 16, 1);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
+	// camera.addTransformation(ROTATEPOSITION, 20, 0, 0, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 12, 0);
+	// camera.addTransformation(ROTATEPOSITION, -20, 0, 0, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 16, 1);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
+	//
+	// camera.addTransformation(ROTATE, 27, -30, 0, 4, 1);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
+	// camera.addTransformation(ROTATE, -27, 30, 0, 4, 1);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
 
-	camera.addTransformation(ROTATE, 27, -30, 0, 4, 1);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
-	camera.addTransformation(ROTATE, -27, 30, 0, 4, 1);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
-
-	camera.addTransformation(TRANSLATE, 1.1, 1, -1.4, 4, 0);
+	camera.addTransformation(TRANSLATE, 0, 0, -2, 0.5, 0);
 	camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
-	camera.addTransformation(TRANSLATE, -1.1, -1, 1.4, 4, 0);
+	camera.addTransformation(TRANSLATE, 0, -1, 1.4, 4, 0);
 	camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
 
-	camera.addTransformation(ROTATE, 27, 30, 0, 4, 1);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
-	camera.addTransformation(ROTATE, -27, -30, 0, 4, 1);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
-
-	camera.addTransformation(TRANSLATE, -1.1, 1, -1.4, 4, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
-	camera.addTransformation(TRANSLATE, 1.1, -1, 1.4, 4, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
+	// camera.addTransformation(ROTATE, 27, 30, 0, 4, 1);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
+	// camera.addTransformation(ROTATE, -27, -30, 0, 4, 1);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 1);
+	//
+	// camera.addTransformation(TRANSLATE, -1.1, 1, -1.4, 4, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
+	// camera.addTransformation(TRANSLATE, 1.1, -1, 1.4, 4, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 2, 0);
 
 	scene["backWall"].addTransformation(WAIT, 0, 0, 0, 16, 0);
 	scene["backWall"].addTransformation(WAIT, 0, 0, 0, 2, 0);
