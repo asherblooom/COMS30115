@@ -62,12 +62,12 @@ production: $(SDW_OBJECT_FILES)
 # Rule for building all of the the DisplayWindow classes
 $(BUILD_DIR)/%.o: $(SDW_DIR)%.cpp
 	@mkdir -p $(BUILD_DIR)
-	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
 # rule for building all of the happy kids
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)%.cpp
 	@mkdir -p $(BUILD_DIR)
-	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
 
 # Files to remove during clean
