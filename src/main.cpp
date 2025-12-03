@@ -608,7 +608,7 @@ void animate1(int &frameCount) {
 	// load models
 	std::map<std::string, Model> scene;
 	scene.emplace("redBox", Model{"red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true});
-	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", GLASS, false});
+	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true});
 	scene.emplace("leftWall", Model{"left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true});
 	scene.emplace("rightWall", Model{"right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true});
 	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
