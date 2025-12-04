@@ -39,7 +39,7 @@ void Model::calculateVertexNormals() {
 }
 
 void Model::addTransformation(TransformationType type, float x, float y, float z, float seconds, int parallel) {
-	float fps = 15;
+	float fps = 30;
 	if (type == TRANSLATE || type == ROTATE || type == SCALE) {
 		for (int i = 1; i <= seconds * fps; i++) {
 			if (parallel == 0) transformations0.push_back(Transformation{type, (x) / (seconds * fps), (y) / (seconds * fps), (z) / (seconds * fps)});
