@@ -1085,38 +1085,39 @@ void animate3(int &frameCount) {
 	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
 	scene.emplace("ceiling", Model{"ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true});
 	scene.emplace("floor", Model{"floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true});
-	scene.emplace("sphere", Model{"sphere.obj", "", 0.4, "sphere", SMOOTH_GOURAUD, true});
-	scene["sphere"].translate(0, -0.9, -0.15);
-	scene["sphere"].rotate(0, 1, 0);
+	scene.emplace("redBox", Model{"red-box.obj", "cornell-box.mtl", 0.35, "redBox", FLAT_SPECULAR, true});
+	scene.emplace("blueBox", Model{"blue-box.obj", "cornell-box.mtl", 0.35, "blueBox", FLAT_SPECULAR, true});
+	// scene.emplace("sphere", Model{"sphere.obj", "", 0.4, "sphere", SMOOTH_GOURAUD, true});
+	// scene["sphere"].translate(0, -0.9, -0.15);
+	// scene["sphere"].rotate(0, 1, 0);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
 	camera.translate(0, 0, 4);
 
-	Light light{10, 0.3, POINT, 60, 60, {0.4, 0, 0}, {0, 0.4, 0}};
-	light.translate(0, 0.5, 0.5);
+	Light light{10, 0.3, AREA, 60, 60, {0.4, 0, 0}, {0, 0, 0.4}};
+	light.translate(0, 0.7, 0.5);
 	light.addTransformation(ROTATE, 0, 360, 0, 4, 0);
-	light.addTransformation(ROTATE, 0, 360, 0, 4, 0);
 
-	scene["sphere"].addTransformation(WAIT, 0, 0, 0, 4, 0);
-	scene["sphere"].addTransformation(SMOOTH_PHONG_, 0, 0, 0, 0, 0);
-	scene["sphere"].addTransformation(WAIT, 0, 0, 0, 4, 0);
-	scene["sphere"].addTransformation(MIRROR_PHONG_, 0, 0, 0, 0, 0);
-	scene["sphere"].addTransformation(WAIT, 0, 0, 0, 6, 0);
-	scene["sphere"].addTransformation(SHADOWS, 0, 0, 0, 0, 0);
-	scene["sphere"].addTransformation(GLASS_PHONG_, 0, 0, 0, 0, 0);
-
-	camera.addTransformation(WAIT, 0, 0, 0, 8, 0);
-
-	camera.addTransformation(TRANSLATE, 0, 0, -1.8, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
-	camera.addTransformation(TRANSLATE, 0, 0, 1.8, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
-
-	camera.addTransformation(TRANSLATE, 0, 0, -1.8, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
-	camera.addTransformation(TRANSLATE, 0, 0, 1.8, 2, 0);
-	camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
+	// scene["sphere"].addTransformation(WAIT, 0, 0, 0, 4, 0);
+	// scene["sphere"].addTransformation(SMOOTH_PHONG_, 0, 0, 0, 0, 0);
+	// scene["sphere"].addTransformation(WAIT, 0, 0, 0, 4, 0);
+	// scene["sphere"].addTransformation(MIRROR_PHONG_, 0, 0, 0, 0, 0);
+	// scene["sphere"].addTransformation(WAIT, 0, 0, 0, 6, 0);
+	// scene["sphere"].addTransformation(SHADOWS, 0, 0, 0, 0, 0);
+	// scene["sphere"].addTransformation(GLASS_PHONG_, 0, 0, 0, 0, 0);
+	//
+	// camera.addTransformation(WAIT, 0, 0, 0, 8, 0);
+	//
+	// camera.addTransformation(TRANSLATE, 0, 0, -1.8, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
+	// camera.addTransformation(TRANSLATE, 0, 0, 1.8, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
+	//
+	// camera.addTransformation(TRANSLATE, 0, 0, -1.8, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
+	// camera.addTransformation(TRANSLATE, 0, 0, 1.8, 2, 0);
+	// camera.addTransformation(WAIT, 0, 0, 0, 1, 0);
 
 	while (true) {
 		window.clearPixels();
