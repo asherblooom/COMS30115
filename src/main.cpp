@@ -866,7 +866,7 @@ void animate2(int &frameCount) {
 	scene.emplace("bunny", Model{"bunny-low.obj", "", 0.012, "bunny", MIRROR, true});
 	// set up bunny
 	scene["bunny"].rotate(90, 0, 0);
-	scene["bunny"].translate(-0.4, -1, 0);
+	scene["bunny"].translate(-0.4, -0.8, 0);
 
 	float focalLength = 4;
 	Camera camera{focalLength};
