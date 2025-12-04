@@ -851,7 +851,7 @@ void raytrace(DrawingWindow &window, std::map<std::string, Model> &scene, Camera
 // }
 //
 void animate2(int &frameCount) {
-	RenderMethod renderMethod = RASTERISE;
+	RenderMethod renderMethod = RAYTRACE;
 	bool finished = true;
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
