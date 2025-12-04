@@ -1095,7 +1095,7 @@ void animate3(int &frameCount) {
 	Camera camera{focalLength};
 	camera.translate(0, 0, 4);
 
-	Light light{10, 0.3, AREA, 60, 60, {0.4, 0, 0}, {0, 0, 0.4}};
+	Light light{10, 0.3, AREA, 40, 40, {0.4, 0, 0}, {0, 0, 0.4}};
 	light.translate(0, 0.7, 0.5);
 	light.addTransformation(ROTATE, 0, 360, 0, 4, 0);
 
