@@ -860,7 +860,7 @@ void animate2(int &frameCount) {
 	std::map<std::string, Model> scene;
 	scene.emplace("leftWall", Model{"left-wall.obj", "cornell-box.mtl", 0.35, "leftWall", FLAT_SPECULAR, true});
 	scene.emplace("rightWall", Model{"right-wall.obj", "cornell-box.mtl", 0.35, "rightWall", FLAT_SPECULAR, true});
-	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", MIRROR, true});
+	scene.emplace("backWall", Model{"back-wall.obj", "cornell-box.mtl", 0.35, "backWall", FLAT_SPECULAR, true});
 	scene.emplace("ceiling", Model{"ceiling.obj", "cornell-box.mtl", 0.35, "ceiling", FLAT_SPECULAR, true});
 	scene.emplace("floor", Model{"floor.obj", "cornell-box.mtl", 0.35, "floor", FLAT_SPECULAR, true});
 	scene.emplace("bunny", Model{"bunny-low.obj", "", 0.012, "bunny", MIRROR, true});
